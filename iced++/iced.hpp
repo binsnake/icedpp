@@ -1,9 +1,21 @@
 #ifndef __ICED_DEF
 #define __ICED_DEF
 
+/* DEFINES */
+
+#define ICED_USE_STD_STRING // Wrappers will include a std::string instead of a char*
+
 /* INCLUDES */
 #include <cstdint>
 #include <cstddef>
+
+#ifdef ICED_USE_STD_STRING
+#include <string>
+#define ICED_STR std::string
+#else
+#define ICED_STR char*
+#endif
+
 #include "iced_internal.hpp"
 
 /* MACROS */
@@ -32,19 +44,23 @@ namespace iced {
 			IcedReg reg;
 			std::uint64_t imm;
 		};
+		union {
+			std::uint64_t disp;
+			std::uint64_t imm2;
+		};
 		std::uint8_t size;
 
 		void setAsRegister(std::uint8_t _reg, std::uint8_t _size) {
 			type = OperandTypeSimple::Register;
 			reg = static_cast<IcedReg>(_reg);
 			size = _size;
-		}		
+		}
 
 		void setAsImmediate(std::uint64_t _imm, std::uint8_t _size) {
 			type = OperandTypeSimple::Immediate;
 			imm = _imm;
 			size = _size;
-		}		
+		}
 
 		void setAsMemory(std::uint8_t base, std::uint8_t index, std::uint8_t scale, std::uint8_t _size) {
 			type = OperandTypeSimple::Memory;
@@ -62,19 +78,19 @@ namespace iced {
 				switch (static_cast<OperandType>(icedInstr.types[i])) {
 				case OperandType::Register8:
 					operands[i].setAsRegister(icedInstr.regs[i], 1);
-					break;			
+					break;
 				case OperandType::Register16:
 					operands[i].setAsRegister(icedInstr.regs[i], 2);
-					break;				
+					break;
 				case OperandType::Register32:
 					operands[i].setAsRegister(icedInstr.regs[i], 4);
-					break;				
+					break;
 				case OperandType::Register64:
 					operands[i].setAsRegister(icedInstr.regs[i], 8);
 					break;
 				case OperandType::Immediate8:
 					operands[i].setAsImmediate(icedInstr.immediate, 1);
-					break;				
+					break;
 				case OperandType::Immediate8_2nd:
 					operands[i].setAsImmediate(icedInstr.immediate2, 1);
 					break;
@@ -83,19 +99,19 @@ namespace iced {
 					break;
 				case OperandType::Immediate32:
 					operands[i].setAsImmediate(icedInstr.immediate2, 4);
-					break;				
+					break;
 				case OperandType::Immediate64:
 					operands[i].setAsImmediate(icedInstr.immediate2, 8);
 					break;
 				case OperandType::Memory8:
 					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 1);
-					break;				
+					break;
 				case OperandType::Memory16:
 					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 2);
-					break;				
+					break;
 				case OperandType::Memory32:
 					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 4);
-					break;				
+					break;
 				case OperandType::Memory64:
 					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 8);
 					break;
@@ -107,8 +123,74 @@ namespace iced {
 		NODISCARD std::uint8_t operandCount() const noexcept { return icedInstr.operand_count_visible; }
 		NODISCARD std::uint8_t instructionLength() const noexcept { return icedInstr.length; }
 		NODISCARD IcedMnemonic mnemonic() const noexcept { return static_cast<IcedMnemonic>(icedInstr.mnemonic); }
+		NODISCARD bool valid() const noexcept { return icedInstr.mnemonic != 0; }
 
+		NODISCARD bool isLea() const noexcept { return idEquals(IcedMnemonic::Lea); }
+		NODISCARD bool isMov() const noexcept { return idEquals(IcedMnemonic::Mov); }
+		NODISCARD bool isBp() const noexcept { return idEquals(IcedMnemonic::Int3); }
+		NODISCARD bool isNop() const noexcept { return idEquals(IcedMnemonic::Nop); }
+		NODISCARD bool isRet() const noexcept { return idEquals(IcedMnemonic::Nop); }
+		NODISCARD bool isCall() const noexcept { return idEquals(IcedMnemonic::Call); }
+		NODISCARD bool isJmp() const noexcept { return idEquals(IcedMnemonic::Jmp); }
+		NODISCARD bool isJcc() const noexcept { return true; } // TODO
+		NODISCARD bool isJump() const noexcept { return isJmp() || isJcc(); }
+		NODISCARD bool isBranching() const noexcept { return isCall() || isJump(); }
+		NODISCARD bool isIndirectCall() const noexcept {
+			if (!isCall()) {
+				return false;
+			}
+
+			return operands[0].type == OperandTypeSimple::Register || operands[0].type == OperandTypeSimple::Memory;
+		}
+
+		NODISCARD std::uint64_t computeMemoryAddress(int operandIndex) const noexcept {
+			const auto& op = operands[operandIndex];
+			if (op.mem.base == static_cast<std::uint8_t>(IcedReg::RIP)) {
+				return ip + instructionLength() + op.disp;
+			}
+
+			if (!op.mem.base || !op.mem.index) { // Displacement holds absolute address
+				return op.disp;
+			}
+
+			return 0ULL; // Unresolvable statically
+		}
+
+		NODISCARD std::uint64_t branchTarget() const noexcept {
+			const auto& op = operands[0];
+			if (op.type == OperandTypeSimple::Immediate) {
+				return op.imm2 ? op.imm2 : op.imm;
+			}
+			else if (op.type == OperandTypeSimple::Register && op.reg == IcedReg::RIP) {
+				return ip + instructionLength() + op.disp;
+			}
+			else {
+				return computeMemoryAddress(0);
+			}
+
+			return 0ULL;
+		}
+
+		NODISCARD std::uint64_t resolveMemoryTarget() const noexcept {
+			for (auto i = 0u; i < operandCount(); ++i) {
+				const auto& op = operands[i];
+				if (op.type == OperandTypeSimple::Memory) {
+					return computeMemoryAddress(i);
+				}
+			}
+
+			return 0ULL;
+		}
+
+		NODISCARD ICED_STR toString() const noexcept {
+			if (!valid()) {
+				return "Invalid instruction";
+			}
+
+			return icedInstr.text;
+		}
 	private:
+		NODISCARD bool idEquals(IcedMnemonic mnemonic) const noexcept { return icedInstr.mnemonic == static_cast<uint16_t>(mnemonic); }
 		__iced_internal::IcedInstruction icedInstr;
 		std::uint64_t ip;
 		Operand operands[4]{ };
