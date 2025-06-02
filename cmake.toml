@@ -1,0 +1,16 @@
+[cmake]
+version = "3.16"
+cmkr-include = "cmake/cmkr.cmake;"
+
+[variables]
+CMAKE_MODULE_PATH = "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+
+[project]
+name = "icedpp"
+
+[find-package.Iced-Wrapper]
+
+[target.icedpp]
+type = "executable"
+sources = ["test.cpp"]
+link-libraries = ["Iced_Wrapper"]
