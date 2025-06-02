@@ -33,15 +33,85 @@ namespace iced {
 			std::uint64_t imm;
 		};
 		std::uint8_t size;
+
+		void setAsRegister(std::uint8_t _reg, std::uint8_t _size) {
+			type = OperandTypeSimple::Register;
+			reg = static_cast<IcedReg>(_reg);
+			size = _size;
+		}		
+
+		void setAsImmediate(std::uint64_t _imm, std::uint8_t _size) {
+			type = OperandTypeSimple::Immediate;
+			imm = _imm;
+			size = _size;
+		}		
+
+		void setAsMemory(std::uint8_t base, std::uint8_t index, std::uint8_t scale, std::uint8_t _size) {
+			type = OperandTypeSimple::Memory;
+			mem.base = base;
+			mem.index = index;
+			mem.scale = scale;
+			size = _size;
+		}
 	};
 	class Instruction {
 	public:
 		Instruction() = default;
-		Instruction(const __iced_internal::IcedInstruction& instruction) : icedInstr(instruction) {}
+		Instruction(const __iced_internal::IcedInstruction& instruction, std::uint64_t ip_) : icedInstr(instruction), ip(ip_) {
+			for (auto i = 0u; i < 4; ++i) {
+				switch (static_cast<OperandType>(icedInstr.types[i])) {
+				case OperandType::Register8:
+					operands[i].setAsRegister(icedInstr.regs[i], 1);
+					break;			
+				case OperandType::Register16:
+					operands[i].setAsRegister(icedInstr.regs[i], 2);
+					break;				
+				case OperandType::Register32:
+					operands[i].setAsRegister(icedInstr.regs[i], 4);
+					break;				
+				case OperandType::Register64:
+					operands[i].setAsRegister(icedInstr.regs[i], 8);
+					break;
+				case OperandType::Immediate8:
+					operands[i].setAsImmediate(icedInstr.immediate, 1);
+					break;				
+				case OperandType::Immediate8_2nd:
+					operands[i].setAsImmediate(icedInstr.immediate2, 1);
+					break;
+				case OperandType::Immediate16:
+					operands[i].setAsImmediate(icedInstr.immediate2, 2);
+					break;
+				case OperandType::Immediate32:
+					operands[i].setAsImmediate(icedInstr.immediate2, 4);
+					break;				
+				case OperandType::Immediate64:
+					operands[i].setAsImmediate(icedInstr.immediate2, 8);
+					break;
+				case OperandType::Memory8:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 1);
+					break;				
+				case OperandType::Memory16:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 2);
+					break;				
+				case OperandType::Memory32:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 4);
+					break;				
+				case OperandType::Memory64:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 8);
+					break;
+				}
+			}
+		}
 
 		NODISCARD __iced_internal::IcedInstruction& internalInstruction() { return icedInstr; }
+		NODISCARD std::uint8_t operandCount() const noexcept { return icedInstr.operand_count_visible; }
+		NODISCARD std::uint8_t instructionLength() const noexcept { return icedInstr.length; }
+		NODISCARD IcedMnemonic mnemonic() const noexcept { return static_cast<IcedMnemonic>(icedInstr.mnemonic); }
+
 	private:
 		__iced_internal::IcedInstruction icedInstr;
+		std::uint64_t ip;
+		Operand operands[4]{ };
 	};
 
 	template <bool IcedDebug = true>
@@ -78,7 +148,7 @@ namespace iced {
 		NODISCARD bool canDecode() const noexcept { return remainingSize_ > 0 && offset_ < size_; }
 		NODISCARD std::uint64_t lastSuccessfulIp() const noexcept { return lastSuccessfulIp_; }
 		NODISCARD std::uint16_t lastSuccessfulLength() const noexcept { return lastSuccessfulLength_; }
-		
+
 		void setIp(std::uint64_t ip) noexcept {
 			ip_ = ip;
 			offset_ = ip - baseAddr_;
