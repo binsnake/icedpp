@@ -11,6 +11,10 @@ name = "icedpp"
 [find-package.Iced-Wrapper]
 
 [target.icedpp]
-type = "executable"
-sources = ["test.cpp"]
+type = "interface"
 link-libraries = ["Iced_Wrapper"]
+
+[target.icedpptest]
+type = "executable" # executable, library, shared (DLL), static, interface, object, custom
+sources = ["test.cpp"]
+link-libraries = ["icedpp"]
