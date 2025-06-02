@@ -2167,24 +2167,23 @@ enum class IcedReg : uint8_t {
   DontUseFF = 255,
 };
 
-namespace __iced_internal {
-    struct IcedInstruction {
-        uint16_t mnemonic;
-        uint8_t mem_base;
-        uint8_t mem_index;
-        uint8_t mem_scale;
-        uint8_t stack_growth;
-        uint8_t regs[4];
-        uint8_t types[4];
-        uint8_t attributes;
-        uint8_t length;
-        uint8_t operand_count_visible;
-        uint64_t immediate;
-        union {
-            uint64_t mem_disp;
-            uint64_t immediate2;
-        };
-        char* text;
-    };
-}
+struct IcedInstruction {
+  IcedMnemonic mnemonic;
+  uint8_t mem_base;
+  uint8_t mem_index;
+  uint8_t mem_scale;
+  uint8_t stack_growth;
+  IcedReg regs[4];
+  uint8_t types[4];
+  uint8_t attributes;
+  uint8_t length;
+  uint8_t operand_count_visible;
+  uint64_t immediate;
+  union {
+    uint64_t mem_disp;
+    uint64_t immediate2;
+  };
+  char *text;
+};
+} // namespace __iced_internal
 #endif
