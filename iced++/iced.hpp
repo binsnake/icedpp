@@ -124,7 +124,7 @@ namespace iced {
 		NODISCARD std::uint8_t instructionLength() const noexcept { return icedInstr.length; }
 		NODISCARD IcedMnemonic mnemonic() const noexcept { return static_cast<IcedMnemonic>(icedInstr.mnemonic); }
 		NODISCARD bool valid() const noexcept { return icedInstr.mnemonic != 0; }
-
+		NODISCARD std::uint8_t stackGrowth() const noexcept { return icedInstr.stack_growth; }
 		NODISCARD bool isLea() const noexcept { return idEquals(IcedMnemonic::Lea); }
 		NODISCARD bool isMov() const noexcept { return idEquals(IcedMnemonic::Mov); }
 		NODISCARD bool isBp() const noexcept { return idEquals(IcedMnemonic::Int3); }
