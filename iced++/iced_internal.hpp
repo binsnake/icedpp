@@ -2166,6 +2166,32 @@ enum class IcedReg : uint8_t {
     DontUseFF = 255,
 };
 
+enum class OperandType : uint8_t {
+    Invalid,
+    Register8,
+    Register16,
+    Register32,
+    Register64,
+    Memory8,
+    Memory16,
+    Memory32,
+    Memory64,
+    Immediate8,
+    Immediate8_2nd,
+    Immediate16,
+    Immediate32,
+    Immediate64,
+    End = Immediate64
+};
+
+enum class OperandTypeSimple : uint8_t {
+    Invalid,
+    Register,
+    Memory,
+    Immediate,
+    End = Immediate
+};
+
 namespace __iced_internal {
     struct IcedInstruction {
         uint16_t mnemonic;

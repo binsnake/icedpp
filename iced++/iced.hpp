@@ -20,10 +20,27 @@ extern "C" {
 
 /* CLASSES */
 namespace iced {
+	struct MemOperand {
+		std::uint8_t base;
+		std::uint8_t index;
+		std::uint8_t scale;
+	};
+	struct Operand {
+		OperandTypeSimple type;
+		union {
+			MemOperand mem;
+			IcedReg reg;
+			std::uint64_t imm;
+		};
+		std::uint8_t size;
+	};
 	class Instruction {
 	public:
 		Instruction() = default;
 		Instruction(const __iced_internal::IcedInstruction& instruction) : icedInstr(instruction) {}
+
+		NODISCARD __iced_internal::IcedInstruction& internalInstruction() { return icedInstr; }
+	private:
 		__iced_internal::IcedInstruction icedInstr;
 	};
 
