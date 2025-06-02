@@ -1,6 +1,11 @@
 #ifndef __ICED_DEF
 #define __ICED_DEF
 
+/* Required links if you're not using cmake (and on Windows) */
+#pragma comment(lib, "ws2_32")
+#pragma comment(lib, "ntdll")
+#pragma comment(lib, "userenv")
+#pragma comment(lib, "Iced_Wrapper.lib")
 /* DEFINES */
 
 #define ICED_USE_STD_STRING // Wrappers will include a std::string instead of a char*
@@ -28,6 +33,7 @@
 extern "C" {
 	int disas(void* obj, const void* code, std::size_t len);
 	int disas2(void* obj, const void* code, std::size_t len);
+	void free_rust_string(char* ptr);
 }
 
 /* CLASSES */
@@ -91,6 +97,15 @@ namespace iced {
 					break;
 				case OperandType::Register64:
 					operands[i].setAsRegister(icedInstr.regs[i], 8);
+					break;				
+				case OperandType::Register128:
+					operands[i].setAsRegister(icedInstr.regs[i], 16);
+					break;				
+				case OperandType::Register256:
+					operands[i].setAsRegister(icedInstr.regs[i], 32);
+					break;				
+				case OperandType::Register512:
+					operands[i].setAsRegister(icedInstr.regs[i], 64);
 					break;
 				case OperandType::Immediate8:
 					operands[i].setAsImmediate(icedInstr.immediate, 1);
@@ -118,9 +133,23 @@ namespace iced {
 					break;
 				case OperandType::Memory64:
 					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 8);
+					break;				
+				case OperandType::Memory128:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 16);
+					break;				
+				case OperandType::Memory256:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 32);
+					break;				
+				case OperandType::Memory512:
+					operands[i].setAsMemory(icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, 64);
+					break;
+				default:
 					break;
 				}
 			}
+		}
+		~Instruction() {
+			free_rust_string(icedInstr.text);
 		}
 
 		NODISCARD __iced_internal::IcedInstruction& internalInstruction() { return icedInstr; }
@@ -136,7 +165,35 @@ namespace iced {
 		NODISCARD bool isRet() const noexcept { return idEquals(IcedMnemonic::Nop); }
 		NODISCARD bool isCall() const noexcept { return idEquals(IcedMnemonic::Call); }
 		NODISCARD bool isJmp() const noexcept { return idEquals(IcedMnemonic::Jmp); }
-		NODISCARD bool isJcc() const noexcept { return false; } // TODO
+		NODISCARD bool isJcc() const noexcept { 
+			switch (mnemonic()) {
+			case IcedMnemonic::Jb:
+			case IcedMnemonic::Jae:
+			case IcedMnemonic::Jbe:
+			case IcedMnemonic::Ja:
+			case IcedMnemonic::Je:
+			case IcedMnemonic::Jne:
+			case IcedMnemonic::Jl:
+			case IcedMnemonic::Jge:
+			case IcedMnemonic::Jle:
+			case IcedMnemonic::Jg:
+			case IcedMnemonic::Jo:
+			case IcedMnemonic::Jno:
+			case IcedMnemonic::Jp:
+			case IcedMnemonic::Jnp:
+			case IcedMnemonic::Js:
+			case IcedMnemonic::Jns:
+			case IcedMnemonic::Jcxz:
+			case IcedMnemonic::Jecxz:
+			case IcedMnemonic::Jrcxz:
+			case IcedMnemonic::Loop:
+			case IcedMnemonic::Loope:
+			case IcedMnemonic::Loopne:
+				return true;
+			default:
+				return false;
+			}
+		}
 		NODISCARD bool isJump() const noexcept { return isJmp() || isJcc(); }
 		NODISCARD bool isBranching() const noexcept { return isCall() || isJump(); }
 		NODISCARD bool isIndirectCall() const noexcept {
@@ -194,10 +251,10 @@ namespace iced {
 			return icedInstr.text;
 		}
 		Operand operands[4]{ };
+		std::uint64_t ip;
 	private:
 		NODISCARD bool idEquals(IcedMnemonic mnemonic) const noexcept { return icedInstr.mnemonic == static_cast<uint16_t>(mnemonic); }
 		__iced_internal::IcedInstruction icedInstr;
-		std::uint64_t ip;
 	};
 
 	template <bool IcedDebug = true>
