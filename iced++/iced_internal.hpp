@@ -2185,5 +2185,18 @@ namespace __iced_internal {
         };
         char* text;
     };
+    static_assert(offsetof(IcedInstruction, mnemonic) == 0, "invalid offset");
+    static_assert(offsetof(IcedInstruction, mem_base) == 2, "invalid offset");
+    static_assert(offsetof(IcedInstruction, mem_index) == 3, "invalid offset");
+    static_assert(offsetof(IcedInstruction, mem_scale) == 4, "invalid offset");
+    static_assert(offsetof(IcedInstruction, stack_growth) == 5, "invalid offset");
+    static_assert(offsetof(IcedInstruction, regs) == 6, "invalid offset");
+    static_assert(offsetof(IcedInstruction, types) == 10, "invalid offset");
+    static_assert(offsetof(IcedInstruction, attributes) == 14, "invalid offset");
+    static_assert(offsetof(IcedInstruction, length) == 15, "invalid offset");
+    static_assert(offsetof(IcedInstruction, operand_count_visible) == 16, "invalid offset");
+    static_assert(offsetof(IcedInstruction, immediate) == 24, "invalid offset");
+    static_assert(offsetof(IcedInstruction, immediate2) == 32, "invalid offset");
+    static_assert(offsetof(IcedInstruction, text) == 40, "invalid offset");
 }
 #endif

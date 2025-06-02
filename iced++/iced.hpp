@@ -22,15 +22,15 @@ extern "C" {
 namespace iced {
 	class Instruction {
 	public:
-		Instruction() = delete;
-		Instruction(const __iced_internal::IcedInstruction& instruction) {
-
-		}
+		Instruction() = default;
+		Instruction(const __iced_internal::IcedInstruction& instruction) : icedInstr(instruction) {}
+		__iced_internal::IcedInstruction icedInstr;
 	};
 
 	template <bool IcedDebug = true>
 	class Decoder {
 	public:
+		Decoder() = delete;
 		Decoder(const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL, std::uint64_t baseAddress = 0ULL)
 			: data_(buffer), ip_(baseAddress), baseAddr_(baseAddress), size_(size),
 			offset_(0UL), remainingSize_(size) {
@@ -38,8 +38,22 @@ namespace iced {
 
 		Decoder(const Decoder&) = delete;
 		Decoder& operator=(const Decoder&) = delete;
-		Decoder(Decoder&&) = default;
-		Decoder& operator=(Decoder&&) = default;
+		Decoder(Decoder&& other) : data_(other.data_), ip_(other.ip_), baseAddr_(other.baseAddr_), size_(other.size_),
+			offset_(other.offset_), remainingSize_(other.size_) {
+		}
+		Decoder& operator=(Decoder&& other) {
+			if (this != &other) {
+				data_ = other.data_;
+				ip_ = other.ip_;
+				baseAddr_ = other.baseAddr_;
+				size_ = other.size_;
+				offset_ = other.offset_;
+				remainingSize_ = other.remainingSize_;
+				lastSuccessfulIp_ = other.lastSuccessfulIp_;
+				lastSuccessfulLength_ = other.lastSuccessfulLength_;
+			}
+			return *this;
+		};
 		~Decoder() = default;
 
 		NODISCARD std::uint64_t ip() const noexcept { return ip_; }
@@ -77,10 +91,11 @@ namespace iced {
 			}
 
 			currentInstruction_ = Instruction{ icedInstruction };
+			return currentInstruction_;
 		}
 
 	private:
-		Instruction currentInstruction_{ 0 };
+		Instruction currentInstruction_;
 		const std::uint8_t* data_ = nullptr;
 		std::uint64_t ip_ = 0;
 		std::uint64_t baseAddr_ = 0;
