@@ -69,6 +69,10 @@ namespace iced {
 			mem.scale = scale;
 			size = _size;
 		}
+
+		std::uint8_t width() {
+			return size * 8;
+		}
 	};
 	class Instruction {
 	public:
@@ -132,7 +136,7 @@ namespace iced {
 		NODISCARD bool isRet() const noexcept { return idEquals(IcedMnemonic::Nop); }
 		NODISCARD bool isCall() const noexcept { return idEquals(IcedMnemonic::Call); }
 		NODISCARD bool isJmp() const noexcept { return idEquals(IcedMnemonic::Jmp); }
-		NODISCARD bool isJcc() const noexcept { return true; } // TODO
+		NODISCARD bool isJcc() const noexcept { return false; } // TODO
 		NODISCARD bool isJump() const noexcept { return isJmp() || isJcc(); }
 		NODISCARD bool isBranching() const noexcept { return isCall() || isJump(); }
 		NODISCARD bool isIndirectCall() const noexcept {
@@ -189,11 +193,11 @@ namespace iced {
 
 			return icedInstr.text;
 		}
+		Operand operands[4]{ };
 	private:
 		NODISCARD bool idEquals(IcedMnemonic mnemonic) const noexcept { return icedInstr.mnemonic == static_cast<uint16_t>(mnemonic); }
 		__iced_internal::IcedInstruction icedInstr;
 		std::uint64_t ip;
-		Operand operands[4]{ };
 	};
 
 	template <bool IcedDebug = true>
@@ -259,7 +263,12 @@ namespace iced {
 				disas(&icedInstruction, current_ptr, 15);
 			}
 
-			currentInstruction_ = Instruction{ icedInstruction };
+			currentInstruction_ = Instruction{ icedInstruction, ip_ };
+			lastSuccessfulIp_ = ip_;             // Store IP *before* advancing
+			lastSuccessfulLength_ = icedInstruction.length; // Store length
+			ip_ += icedInstruction.length;
+			offset_ += icedInstruction.length;
+			remainingSize_ -= icedInstruction.length;
 			return currentInstruction_;
 		}
 
