@@ -11,6 +11,5 @@ name = "icedpp"
 [find-package.Iced-Wrapper]
 
 [target.icedpp]
-type = "static"
-sources = ["test.cpp"]
+type = "interface"
 link-libraries = ["Iced_Wrapper"]
