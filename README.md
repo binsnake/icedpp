@@ -113,6 +113,9 @@ Output:
 
 ## Speed
 
+DebugDecoder includes formatting the instruction string.
+ReleaseDecoder does not format the instruction string.
+
 ### i9-14900k
 DebugDecoder ~69MB/s
 
