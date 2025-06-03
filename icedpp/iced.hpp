@@ -90,6 +90,18 @@ namespace iced
 			size = _size;
 		}
 
+		void setAsNearBranch ( std::uint64_t _disp, std::uint8_t size ) {
+			type = OperandTypeSimple::NearBranch;
+			disp = _disp;
+			size = size;
+		}		
+		
+		void setAsFarBranch ( std::uint64_t _disp, std::uint8_t size ) {
+			type = OperandTypeSimple::FarBranch;
+			disp = _disp;
+			size = size;
+		}
+
 		std::uint8_t width ( ) {
 			return size * 8;
 		}
@@ -177,10 +189,10 @@ namespace iced
 						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 64 );
 						break;
 					case OperandType::NearBranch:
-						operands [ i ].setAsMemory ( static_cast< uint8_t >( IcedReg::RIP ), 0, 0, icedInstr.mem_disp, 64 );
+						operands [ i ].setAsNearBranch ( icedInstr.mem_disp, 64 );
 						break;					
 					case OperandType::FarBranch:
-						operands [ i ].setAsMemory ( static_cast< uint8_t >( IcedReg::RIP ), 0, 0, icedInstr.mem_disp, 32 );
+						operands [ i ].setAsFarBranch ( icedInstr.mem_disp, 64 );
 						break;
 					default:
 						break;
@@ -255,17 +267,20 @@ namespace iced
 
 		NODISCARD std::uint64_t branchTarget ( ) const noexcept {
 			const auto& op = operands [ 0 ];
-			if ( op.type == OperandTypeSimple::Immediate ) {
-				return op.imm2 ? op.imm2 : op.imm;
-			}
-			else if ( op.type == OperandTypeSimple::Register && op.reg == IcedReg::RIP ) {
-				return ip + instructionLength ( ) + op.disp;
-			}
-			else {
-				return computeMemoryAddress ( 0 );
+
+			switch ( op.type ) {
+				case OperandTypeSimple::Immediate:
+					return op.imm2 ? op.imm2 : op.imm;
+				case OperandTypeSimple::Memory:
+					return resolveMemoryTarget ( );
+				case OperandTypeSimple::NearBranch:
+				case OperandTypeSimple::FarBranch:
+					return ip + instructionLength ( ) + op.disp;
+				default:
+					return 0ULL;
 			}
 
-			return 0ULL;
+			UNREACHABLE ( );
 		}
 
 		NODISCARD std::uint64_t resolveMemoryTarget ( ) const noexcept {
