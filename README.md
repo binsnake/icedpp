@@ -12,6 +12,10 @@ Work in progress, only basic functionality is implemented so far.
 
 The code is formatted mostly in camelCase.
 
+## Standard
+
+Requires C++17 or above.
+
 # Building
 
 Building is done with CMake.
