@@ -105,6 +105,18 @@ namespace iced
 				case IcedMnemonic::Loopne:
 				case IcedMnemonic::Loope:
 					return FlowControl::ConditionalBranch;
+				case IcedMnemonic::Int:
+				case IcedMnemonic::Int1:
+				case IcedMnemonic::Int3:
+				case IcedMnemonic::Into:
+				case IcedMnemonic::Smint:
+				case IcedMnemonic::Dmint:
+					return FlowControl::Interrupt;
+				case IcedMnemonic::INVALID:
+				case IcedMnemonic::Ud0:
+				case IcedMnemonic::Ud1:
+				case IcedMnemonic::Ud2:
+					return FlowControl::Exception;
 				default:
 					break;
 			}
