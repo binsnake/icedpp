@@ -2202,6 +2202,19 @@ enum class OperandKindSimple : uint8_t {
   End = FarBranch
 };
 
+enum class FlowControl {
+  Next = 0,
+  UnconditionalBranch = 1,
+  IndirectBranch = 2,
+  ConditionalBranch = 3,
+  Return = 4,
+  Call = 5,
+  IndirectCall = 6,
+  Interrupt = 7,
+  XbeginXabortXend = 8,
+  Exception = 9,
+};
+
 namespace __iced_internal
 {
   struct IcedInstruction {
