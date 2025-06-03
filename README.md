@@ -110,3 +110,21 @@ Output:
 0x22 -> ret
       Operand count: 0
 ```
+
+## Speed
+
+### i9-14900k
+DebugDecoder ~69MB/s
+ReleaseDecoder ~133MB/s
+
+### i5-9600KF
+DebugDecoder ~39MB/s
+ReleaseDecoder ~71MB/s
+
+To measure the speed, a 340MB code section was disassembled over multiple iterations from start to end. The code ranges in complexity, includes obfuscation.
+```cpp
+while (true) {
+	auto instruction = decoder.decode();
+	( instruction );
+}
+```
