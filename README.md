@@ -7,6 +7,7 @@ Iced++ does not aim to directly re-implement the Rust SDK.
 Work in progress, only basic functionality is implemented so far.
 
 `icedpp_rust_lib` contains a Rust proxy module that runs the decoder and translates them into a C-structure.
+
 `icedpp` is a header-only library providing a friendly wrapper around the decoder & instruction classes.
 
 The code is formatted mostly in camelCase.
