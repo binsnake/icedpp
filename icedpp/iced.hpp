@@ -13,6 +13,7 @@
 /* INCLUDES */
 #include <cstdint>
 #include <cstddef>
+#include <utility>
 
 #ifdef ICED_USE_STD_STRING
 #include <string>
@@ -28,6 +29,18 @@
 #define NODISCARD [[nodiscard]]
 #else
 #define NODISCARD
+#endif
+
+#if defined(_MSC_VER)
+#define UNREACHABLE() __assume(false)
+#elif defined(__GNUC__) || defined(__clang__)
+#define UNREACHABLE() __builtin_unreachable()
+#else
+#if __cplusplus >= 202302L || _MSVC_LANG >= 202302L
+#define UNREACHABLE() std::unreachable()
+#else
+#define UNREACHABLE() do {} while (0) // Fallback for older standards
+#endif
 #endif
 
 extern "C" {
@@ -79,6 +92,25 @@ namespace iced
 
 		std::uint8_t width ( ) {
 			return size * 8;
+		}
+
+		std::string_view typeStr ( ) {
+			switch ( type ) {
+				case OperandTypeSimple::Register:
+					return "Register";
+				case OperandTypeSimple::Memory:
+					return "Memory";
+				case OperandTypeSimple::Immediate:
+					return "Immediate";
+				case OperandTypeSimple::NearBranch:
+					return "NearBranch";
+				case OperandTypeSimple::FarBranch:
+					return "FarBranch";
+				default:
+					return "Invalid";
+			}
+
+			UNREACHABLE ( );
 		}
 	};
 	class Instruction {
@@ -191,9 +223,6 @@ namespace iced
 				case IcedMnemonic::Jcxz:
 				case IcedMnemonic::Jecxz:
 				case IcedMnemonic::Jrcxz:
-				case IcedMnemonic::Loop:
-				case IcedMnemonic::Loope:
-				case IcedMnemonic::Loopne:
 					return true;
 				default:
 					return false;
@@ -201,6 +230,8 @@ namespace iced
 		}
 		NODISCARD bool isJump ( ) const noexcept { return isJmp ( ) || isJcc ( ); }
 		NODISCARD bool isBranching ( ) const noexcept { return isCall ( ) || isJump ( ); }
+		NODISCARD bool isConditionalBranch ( ) const noexcept { return isJcc ( ); }
+		NODISCARD bool isUnconditionalBranch ( ) const noexcept { return isCall ( ) || isJmp ( ); }
 		NODISCARD bool isIndirectCall ( ) const noexcept {
 			if ( !isCall ( ) ) {
 				return false;
