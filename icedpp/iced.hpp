@@ -147,6 +147,7 @@ namespace iced
 
 			return OperandKindSimple::Invalid;
 		}
+		/// Returns operand size in bytes
 		NODISCARD FORCE_INLINE std::size_t opSize ( std::size_t index ) const noexcept {
 			const auto map = icedInstr.types [ index ];
 			switch ( map ) {
@@ -184,8 +185,54 @@ namespace iced
 
 			return 0ULL;
 		}
+		/// <summary>
+		///  Calculates size of operand in bytes
+		/// </summary>
+		/// <param name="index">index of operand</param>
+		/// <returns>Width in bytes</returns>
+		NODISCARD FORCE_INLINE std::size_t op0Size ( ) const noexcept { return opSize ( 0 ); }
+		/// <summary>
+		///  Calculates size of first operand in bytes
+		/// </summary>
+		/// <returns>Width in bytes</returns>
+		NODISCARD FORCE_INLINE std::size_t op1Size ( ) const noexcept { return opSize ( 1 ); }
+		/// <summary>
+		///  Calculates size of second operand in bytes
+		/// </summary>
+		/// <returns>Width in bytes</returns>
+		NODISCARD FORCE_INLINE std::size_t op2Size ( ) const noexcept { return opSize ( 2 ); }
+		/// <summary>
+		///  Calculates size of third operand in bytes
+		/// </summary>
+		/// <returns>Width in bytes</returns>
+		NODISCARD FORCE_INLINE std::size_t op3Size ( ) const noexcept { return opSize ( 3 ); }
 
+		/// <summary>
+		///  Calculates width of operand in bits
+		/// </summary>
+		/// <param name="index">index of operand</param>
+		/// <returns>Width in bits</returns>
 		NODISCARD FORCE_INLINE std::size_t opWidth ( std::size_t index ) const noexcept { return opSize ( index ) * 8ULL; }
+		/// <summary>
+		///		Calculates width of the first operand in bits
+		/// </summary>
+		/// <returns>Width in bits</returns>
+		NODISCARD FORCE_INLINE std::size_t op0Width ( ) const noexcept { return opWidth ( 0 ); }
+		/// <summary>
+		///		Calculates width of the second operand in bits
+		/// </summary>
+		/// <returns>Width in bits</returns>
+		NODISCARD FORCE_INLINE std::size_t op1Width ( ) const noexcept { return opWidth ( 1 ); }
+		/// <summary>
+		///		Calculates width of the third operand in bits
+		/// </summary>
+		/// <returns>Width in bits</returns>
+		NODISCARD FORCE_INLINE std::size_t op2Width ( ) const noexcept { return opWidth ( 2 ); }
+		/// <summary>
+		///		Calculates width of the fourth operand in bits
+		/// </summary>
+		/// <returns>Width in bits</returns>
+		NODISCARD FORCE_INLINE std::size_t op3Width ( ) const noexcept { return opWidth ( 3 ); }
 
 		NODISCARD FORCE_INLINE OperandKind opKind ( std::size_t index ) const noexcept { return static_cast< OperandKind >( icedInstr.types [ index ] ); }
 		NODISCARD FORCE_INLINE OperandKind op0Kind ( ) const noexcept { return opKind ( 0 ); }
@@ -228,16 +275,6 @@ namespace iced
 		NODISCARD FORCE_INLINE IcedReg op1Reg ( ) const noexcept { return opReg ( 1 ); }
 		NODISCARD FORCE_INLINE IcedReg op2Reg ( ) const noexcept { return opReg ( 2 ); }
 		NODISCARD FORCE_INLINE IcedReg op3Reg ( ) const noexcept { return opReg ( 3 ); }
-
-		NODISCARD FORCE_INLINE std::size_t op0Size ( ) const noexcept { return opSize ( 0 ); }
-		NODISCARD FORCE_INLINE std::size_t op1Size ( ) const noexcept { return opSize ( 1 ); }
-		NODISCARD FORCE_INLINE std::size_t op2Size ( ) const noexcept { return opSize ( 2 ); }
-		NODISCARD FORCE_INLINE std::size_t op3Size ( ) const noexcept { return opSize ( 3 ); }
-
-		NODISCARD FORCE_INLINE std::size_t op0Width ( ) const noexcept { return opWidth ( 0 ); }
-		NODISCARD FORCE_INLINE std::size_t op1Width ( ) const noexcept { return opWidth ( 1 ); }
-		NODISCARD FORCE_INLINE std::size_t op2Width ( ) const noexcept { return opWidth ( 2 ); }
-		NODISCARD FORCE_INLINE std::size_t op3Width ( ) const noexcept { return opWidth ( 3 ); }
 
 		NODISCARD FORCE_INLINE std::uint64_t immediate ( ) const noexcept { return icedInstr.immediate; }
 		NODISCARD FORCE_INLINE std::uint64_t displacement ( ) const noexcept { return icedInstr.mem_disp; }
@@ -298,11 +335,6 @@ namespace iced
 			switch ( icedInstr.mnemonic ) {
 				case IcedMnemonic::Ret:
 				case IcedMnemonic::Iret:
-				case IcedMnemonic::Sysret:
-				case IcedMnemonic::Sysexit:
-				case IcedMnemonic::Rsm:
-				case IcedMnemonic::Skinit:
-				case IcedMnemonic::Rdm:
 				case IcedMnemonic::Uiret:
 					return true;
 				default:
