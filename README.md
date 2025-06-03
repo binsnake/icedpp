@@ -123,7 +123,7 @@ ReleaseDecoder ~71MB/s
 
 To measure the speed, a 340MB code section was disassembled over multiple iterations from start to end. The code ranges in complexity, includes obfuscation.
 ```cpp
-while (true) {
+while (decoder.canDecode()) {
 	auto instruction = decoder.decode();
 	( instruction );
 }
