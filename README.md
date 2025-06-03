@@ -36,11 +36,12 @@ int main ( ) {
 		std::println ( "{:#x} -> {}", instruction.ip, instruction.toString ( ) );
 		std::println ( "{:6}Operand count: {}", "", instruction.operandCount ( ) );
 		for ( auto i = 0u; i < instruction.operandCount ( ); ++i ) {
-			auto op = instruction.operands[i];
-			std::println ( "{:12}[{}] Operand width: {}", "", i, op.width ( ) );
-			std::println ( "{:12}[{}] Operand type: {}", "", i, op.typeStr ( ) );
+			std::println ( "{:12}[{}] Operand width: {:d}", "", i, instruction.opWidth ( i ) );
+			std::println ( "{:12}[{}] Operand type: {}", "", i, instruction.opKindSimpleStr ( i ) );
 		}
 	}
+
+	return 0;
 }
 ```
 
