@@ -407,3 +407,4 @@ FodyWeavers.xsd
 /build
 /build2
 /build3
+/icedpp_rust_lib/.idea

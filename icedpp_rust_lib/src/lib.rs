@@ -1,5 +1,5 @@
 use iced_x86::{Decoder, DecoderOptions, Formatter, Instruction, MemorySize, Mnemonic, NasmFormatter, OpKind, Register, SpecializedFormatter, SpecializedFormatterTraitOptions};
-use std::slice;
+use std::{ptr, slice};
 use std::ffi::CString;
 use std::os::raw::c_char;
 use memoffset::offset_of;
@@ -23,6 +23,8 @@ enum OperandType {
   Register32,
   Register64,
   Register128,
+  Register256,
+  Register512,
   Memory8,
   Memory16,
   Memory32,
@@ -34,37 +36,27 @@ enum OperandType {
   Immediate8_2nd, // enter/exit
   Immediate16,
   Immediate32,
-  Immediate64
+  Immediate64,
+  NearBranch,
+  FarBranch,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct MergenDisassembledInstructionBase {
-    pub mnemonic: u16,
-
-    pub mem_base: u8,
-    pub mem_index: u8,
-    pub mem_scale: u8,
-
-
-    pub stack_growth: u8,
-
-    
-
-    pub regs: [u8; 4],
-    pub types: [u8; 4],
-
-    pub attributes: u8,
-
-    pub length: u8,
-
-    pub operand_count_visible: u8,
-
-    pub immediate: u64,
-
-    pub mem_disp: u64, // aka imm2
-
-    pub text: *mut i8,
+  pub mnemonic: u16,
+  pub mem_base: u8,
+  pub mem_index: u8,
+  pub mem_scale: u8,
+  pub stack_growth: u8,
+  pub regs: [u8; 4],
+  pub types: [u8; 4],
+  pub attributes: u8,
+  pub length: u8,
+  pub operand_count_visible: u8,
+  pub immediate: u64,
+  pub mem_disp: u64,
+  pub text: [u8; 64], // Fixed-size array for C-string
 }
 
 // make sure its same as our c structure
@@ -111,59 +103,60 @@ fn is_relative_jump(instr: &Instruction) -> bool {
 fn convert_type_to_mergen(inst : &Instruction,  index : u32) -> OperandType {
     
     match inst.op_kind(index) {
-        OpKind::Register => {
-            match inst.op_register(index).size() {
-                1 => { return OperandType::Register8; },
-                2 => {return OperandType::Register16},
-                4 => {return OperandType::Register32},
-                8 => {return OperandType::Register64},
-                16 => {return OperandType::Register128},
-                0 => {return OperandType::Invalid},
-                _ => OperandType::Invalid,
-            }
-        },
-        OpKind::Immediate8 => { return OperandType::Immediate8 },
-        OpKind::Immediate8_2nd => { return OperandType::Immediate8_2nd },
-        OpKind::Immediate16 => {return OperandType::Immediate16},
+      OpKind::Register => {
+        match inst.op_register(index).size() {
+          1 => { return OperandType::Register8; },
+          2 => {return OperandType::Register16},
+          4 => {return OperandType::Register32},
+          8 => {return OperandType::Register64},
+          16 => {return OperandType::Register128},
+          32 => {return OperandType::Register256},
+          64 => {return OperandType::Register512},
+          0 => {return OperandType::Invalid},
+          _ => OperandType::Invalid,
+        }
+      },
+        OpKind::Immediate8 => return OperandType::Immediate8,
+        OpKind::Immediate8_2nd => return OperandType::Immediate8_2nd,
+        OpKind::Immediate16 => return OperandType::Immediate16,
         OpKind::Immediate32 => return OperandType::Immediate32,
         OpKind::Immediate64 => return OperandType::Immediate64,
         
         // these get Sign Extended, but we smart, we know what to sign extend XD
-        // todo: add these types to enum
         OpKind::Immediate8to16 => return OperandType::Immediate8,
         OpKind::Immediate8to32 => return OperandType::Immediate8,
         OpKind::Immediate8to64 => return OperandType::Immediate8,
         OpKind::Immediate32to64 => return OperandType::Immediate32,
 
-        OpKind::NearBranch16 => return OperandType::Immediate16,
-        OpKind::NearBranch32 => return OperandType::Immediate32,
-        OpKind::NearBranch64 => return OperandType::Immediate64,
+        OpKind::NearBranch16 => return OperandType::NearBranch,
+        OpKind::NearBranch32 => return OperandType::NearBranch,
+        OpKind::NearBranch64 => return OperandType::NearBranch,
 
-        OpKind::FarBranch16 => return OperandType::Immediate16,
-        OpKind::FarBranch32 => return OperandType::Immediate32,
+        OpKind::FarBranch16 => return OperandType::FarBranch,
+        OpKind::FarBranch32 => return OperandType::FarBranch,
         // OpKind::FarBranch64 => return OperandType::Immediate64,
         
         // OpKind::NearBranch16 => return OperandType::Immediate16,
 
         OpKind::Memory => {
-            match inst.memory_size().size() {
-                0 => {
-                    /*                    
-                    if inst.mnemonic() == Mnemonic::Lea {
-                        return convert_type_to_mergen(&inst, 0);
-                    } 
-                    */
-                    return OperandType::Invalid;
-                },
-                1 => {return OperandType::Memory8},
-                2 => {return OperandType::Memory16},
-                4 => {return OperandType::Memory32},
-                8 => {return OperandType::Memory64},
-                16 => { return OperandType::Memory128 },
-				32 => {return OperandType::Memory256},
-				64 => {return OperandType::Memory512},
-                _ => {return OperandType::Invalid},
-            }
+          return match inst.memory_size().size() {
+            0 => {
+              /*
+              if inst.mnemonic() == Mnemonic::Lea {
+                  return convert_type_to_mergen(&inst, 0);
+              }
+              */
+              OperandType::Invalid
+            },
+            1 => { OperandType::Memory8 },
+            2 => { OperandType::Memory16 },
+            4 => { OperandType::Memory32 },
+            8 => { OperandType::Memory64 },
+            16 => { OperandType::Memory128 },
+            32 => { OperandType::Memory256 },
+            64 => { OperandType::Memory512 },
+            _ => { OperandType::Invalid },
+          }
         },
 
         _ => return OperandType::Invalid,
@@ -185,164 +178,140 @@ fn convert_type_to_mergen(inst : &Instruction,  index : u32) -> OperandType {
 /// Returns 0 on success, or -1 if the input pointers are null or length is 0.
 #[no_mangle]
 pub extern "C" fn disas(
-    out: *mut MergenDisassembledInstructionBase,
-    code_ptr: *const u8,
-    len: usize
+  out: *mut MergenDisassembledInstructionBase,
+  code_ptr: *const u8,
+  len: usize,
 ) -> i32 {
-    // Fast null/length check
-    if out.is_null() || code_ptr.is_null() || len == 0 {
-        return -1;
-    }
-
-    // SAFETY: we've checked that pointers are non-null and len > 0
-    let code = unsafe { std::slice::from_raw_parts(code_ptr, len) };
-    let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
-    let instr = decoder.decode();
-
-
-    // Precompute commonly used values
-    let disp64 = instr.memory_displacement64();
-    let instr_len = instr.len() as u64;
-    let is_rel = is_relative_jump(&instr);
-    let has_imm64 = has_64bit_immediate(&instr);
-
-    // Compute immediate in one branch sequence
-    let immediate = if is_rel {
-        // relative jump: displacement minus instruction length
-        disp64.wrapping_sub(instr_len)
-    } else if has_imm64 {
-        instr.immediate64() as u64
-    } else {
-        instr.immediate32() as u64
-    };
-
-    // Compute prefix attributes via bitflags
-    let mut attrs = 0u8;
-    if instr.has_rep_prefix()   { attrs = PREFIX_REP as u8; }
-    if instr.has_repne_prefix() { attrs = PREFIX_REPNE as u8; }
-    if instr.has_lock_prefix()  { attrs = PREFIX_LOCK as u8; }
-
-    // Build output struct in one go
-    let out_value = MergenDisassembledInstructionBase {
-        mnemonic: instr.mnemonic() as u16,
-        mem_base:   instr.memory_base() as u8,
-        mem_index:  instr.memory_index() as u8,
-        mem_scale:  instr.memory_index_scale() as u8,
-        mem_disp:   if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
-        stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
-        immediate,
-        regs: [
-            instr.op0_register() as u8,
-            instr.op1_register() as u8,
-            instr.op2_register() as u8,
-            instr.op3_register() as u8,
-        ],
-        types: [
-            convert_type_to_mergen(&instr, 0) as u8,
-            convert_type_to_mergen(&instr, 1) as u8,
-            convert_type_to_mergen(&instr, 2) as u8,
-            convert_type_to_mergen(&instr, 3) as u8,
-        ],
-        operand_count_visible: instr.op_count() as u8,
-        attributes: attrs,
-        length: instr.len() as u8,
-        text: std::ptr::null_mut()
-    };
-
-    // SAFETY: out is non-null and points to valid memory
-    unsafe { std::ptr::write(out, out_value) };
-
-    0
+  if out.is_null() || code_ptr.is_null() || len == 0 {
+    return -1;
+  }
+  let code = unsafe { slice::from_raw_parts(code_ptr, len) };
+  let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
+  let instr = decoder.decode();
+  let disp64 = instr.memory_displacement64();
+  let instr_len = instr.len() as u64;
+  let is_rel = is_relative_jump(&instr);
+  let has_imm64 = has_64bit_immediate(&instr);
+  let immediate = if is_rel {
+    disp64.wrapping_sub(instr_len)
+  } else if has_imm64 {
+    instr.immediate64() as u64
+  } else {
+    instr.immediate32() as u64
+  };
+  let mut attrs = 0u8;
+  if instr.has_rep_prefix() {
+    attrs = PREFIX_REP as u8;
+  }
+  if instr.has_repne_prefix() {
+    attrs = PREFIX_REPNE as u8;
+  }
+  if instr.has_lock_prefix() {
+    attrs = PREFIX_LOCK as u8;
+  }
+  let out_value = MergenDisassembledInstructionBase {
+    mnemonic: instr.mnemonic() as u16,
+    mem_base: instr.memory_base() as u8,
+    mem_index: instr.memory_index() as u8,
+    mem_scale: instr.memory_index_scale() as u8,
+    mem_disp: if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
+    stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
+    immediate,
+    regs: [
+      instr.op0_register() as u8,
+      instr.op1_register() as u8,
+      instr.op2_register() as u8,
+      instr.op3_register() as u8,
+    ],
+    types: [
+      convert_type_to_mergen(&instr, 0) as u8,
+      convert_type_to_mergen(&instr, 1) as u8,
+      convert_type_to_mergen(&instr, 2) as u8,
+      convert_type_to_mergen(&instr, 3) as u8,
+    ],
+    operand_count_visible: instr.op_count() as u8,
+    attributes: attrs,
+    length: instr.len() as u8,
+    text: [0u8; 64], // Initialize with zeros
+  };
+  unsafe { ptr::write(out, out_value) };
+  0
 }
 
 #[no_mangle]
 pub extern "C" fn disas2(
-    out: *mut MergenDisassembledInstructionBase,
-    code_ptr: *const u8,
-    len: usize,
+  out: *mut MergenDisassembledInstructionBase,
+  code_ptr: *const u8,
+  len: usize,
 ) -> i32 {
-    if out.is_null() || code_ptr.is_null() || len == 0 {
-        return -1;
+  if out.is_null() || code_ptr.is_null() || len == 0 {
+    return -1;
+  }
+  let code = unsafe { slice::from_raw_parts(code_ptr, len) };
+  let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
+  let instr = decoder.decode();
+  struct MyTraitOptions;
+  impl SpecializedFormatterTraitOptions for MyTraitOptions {
+    const ENABLE_DB_DW_DD_DQ: bool = false;
+    unsafe fn verify_output_has_enough_bytes_left() -> bool {
+      false
     }
-    let code = unsafe { std::slice::from_raw_parts(code_ptr, len) };
-    let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
-    let instr = decoder.decode();
-    struct MyTraitOptions;
-    impl SpecializedFormatterTraitOptions for MyTraitOptions {
-        // If you never create a db/dw/dd/dq 'instruction', we don't need this feature.
-        const ENABLE_DB_DW_DD_DQ: bool = false;
-        // For a few percent faster code, you can also override `verify_output_has_enough_bytes_left()` and return `false`
-        unsafe fn verify_output_has_enough_bytes_left() -> bool {
-             false
-        }
-    }
-    type MyFormatter = SpecializedFormatter<MyTraitOptions>;
-    // Format instruction text
-    let mut formatter = MyFormatter::new();
-    let mut formatted = String::new();
-    formatter.format(&instr, &mut formatted);
-    let c_text = match CString::new(formatted) {
-        Ok(cstr) => cstr.into_raw(),
-        Err(_) => return -1,
-    };
-
-    let disp64 = instr.memory_displacement64();
-    let instr_len = instr.len() as u64;
-    let is_rel = is_relative_jump(&instr);
-    let has_imm64 = has_64bit_immediate(&instr);
-
-    let immediate = if is_rel {
-        disp64.wrapping_sub(instr_len)
-    } else if has_imm64 {
-        instr.immediate64() as u64
-    } else {
-        instr.immediate32() as u64
-    };
-
-    let mut attrs = 0u8;
-    if instr.has_rep_prefix()   { attrs |= 0b001; }
-    if instr.has_repne_prefix() { attrs |= 0b010; }
-    if instr.has_lock_prefix()  { attrs |= 0b100; }
-
-    let out_value = MergenDisassembledInstructionBase {
-        mnemonic: instr.mnemonic() as u16,
-        mem_base: instr.memory_base() as u8,
-        mem_index: instr.memory_index() as u8,
-        mem_scale: instr.memory_index_scale() as u8,
-        mem_disp: if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
-        stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
-        immediate,
-        regs: [
-            instr.op0_register() as u8,
-            instr.op1_register() as u8,
-            instr.op2_register() as u8,
-            instr.op3_register() as u8,
-        ],
-        types: [
-            convert_type_to_mergen(&instr, 0) as u8,
-            convert_type_to_mergen(&instr, 1) as u8,
-            convert_type_to_mergen(&instr, 2) as u8,
-            convert_type_to_mergen(&instr, 3) as u8,
-        ],
-        operand_count_visible: instr.op_count() as u8,
-        attributes: attrs,
-        length: instr.len() as u8,
-        text: c_text,
-    };
-    unsafe { std::ptr::write(out, out_value) };
-    0
-}
-
-/// Frees a string allocated by Rust (using CString::into_raw).
-///
-/// # Parameters
-///
-/// - `s`: Pointer to the C string allocated in Rust.
-#[no_mangle]
-pub extern "C" fn free_rust_string(s: *mut c_char) {
-    if s.is_null() {
-        return;
-    }
-    // Safety: reconstruct the CString so that it gets dropped.
-    unsafe { let _ = CString::from_raw(s); };
+  }
+  type MyFormatter = SpecializedFormatter<MyTraitOptions>;
+  let mut formatter = MyFormatter::new();
+  let mut formatted = String::new();
+  formatter.format(&instr, &mut formatted);
+  let bytes = formatted.as_bytes();
+  let mut text = [0u8; 64];
+  let copy_len = bytes.len().min(63); // Reserve 1 byte for null terminator
+  text[..copy_len].copy_from_slice(&bytes[..copy_len]);
+  text[copy_len] = 0; // Null-terminate
+  let disp64 = instr.memory_displacement64();
+  let instr_len = instr.len() as u64;
+  let is_rel = is_relative_jump(&instr);
+  let has_imm64 = has_64bit_immediate(&instr);
+  let immediate = if is_rel {
+    disp64.wrapping_sub(instr_len)
+  } else if has_imm64 {
+    instr.immediate64() as u64
+  } else {
+    instr.immediate32() as u64
+  };
+  let mut attrs = 0u8;
+  if instr.has_rep_prefix() {
+    attrs |= 0b001;
+  }
+  if instr.has_repne_prefix() {
+    attrs |= 0b010;
+  }
+  if instr.has_lock_prefix() {
+    attrs |= 0b100;
+  }
+  let out_value = MergenDisassembledInstructionBase {
+    mnemonic: instr.mnemonic() as u16,
+    mem_base: instr.memory_base() as u8,
+    mem_index: instr.memory_index() as u8,
+    mem_scale: instr.memory_index_scale() as u8,
+    mem_disp: if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
+    stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
+    immediate,
+    regs: [
+      instr.op0_register() as u8,
+      instr.op1_register() as u8,
+      instr.op2_register() as u8,
+      instr.op3_register() as u8,
+    ],
+    types: [
+      convert_type_to_mergen(&instr, 0) as u8,
+      convert_type_to_mergen(&instr, 1) as u8,
+      convert_type_to_mergen(&instr, 2) as u8,
+      convert_type_to_mergen(&instr, 3) as u8,
+    ],
+    operand_count_visible: instr.op_count() as u8,
+    attributes: attrs,
+    length: instr.len() as u8,
+    text,
+  };
+  unsafe { ptr::write(out, out_value) };
+  0
 }

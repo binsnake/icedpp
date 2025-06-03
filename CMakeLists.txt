@@ -38,23 +38,3 @@ add_library(icedpp INTERFACE)
 target_link_libraries(icedpp INTERFACE
 	Iced_Wrapper
 )
-
-# Target: icedpptest
-set(icedpptest_SOURCES
-	cmake.toml
-	test.cpp
-)
-
-add_executable(icedpptest)
-
-target_sources(icedpptest PRIVATE ${icedpptest_SOURCES})
-source_group(TREE ${CMAKE_CURRENT_SOURCE_DIR} FILES ${icedpptest_SOURCES})
-
-target_link_libraries(icedpptest PRIVATE
-	icedpp
-)
-
-get_directory_property(CMKR_VS_STARTUP_PROJECT DIRECTORY ${PROJECT_SOURCE_DIR} DEFINITION VS_STARTUP_PROJECT)
-if(NOT CMKR_VS_STARTUP_PROJECT)
-	set_property(DIRECTORY ${PROJECT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT icedpptest)
-endif()
