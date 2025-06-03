@@ -2166,7 +2166,7 @@ enum class IcedReg : uint8_t {
   DontUseFF = 255,
 };
 
-enum class OperandType : uint8_t {
+enum class OperandKind : uint8_t {
   Invalid,
   Register8,
   Register16,
@@ -2192,7 +2192,7 @@ enum class OperandType : uint8_t {
   End = FarBranch
 };
 
-enum class OperandTypeSimple : uint8_t {
+enum class OperandKindSimple : uint8_t {
   Invalid,
   Register,
   Memory,
@@ -2205,13 +2205,13 @@ enum class OperandTypeSimple : uint8_t {
 namespace __iced_internal
 {
   struct IcedInstruction {
-    uint16_t mnemonic;
+    IcedMnemonic mnemonic;
     IcedReg mem_base;
     uint8_t mem_index;
     uint8_t mem_scale;
     uint8_t stack_growth;
     IcedReg regs [ 4 ];
-    OperandType types [ 4 ];
+    OperandKind types [ 4 ];
     uint8_t attributes;
     uint8_t length;
     uint8_t operand_count_visible;
