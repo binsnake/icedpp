@@ -2206,12 +2206,12 @@ namespace __iced_internal
 {
   struct IcedInstruction {
     uint16_t mnemonic;
-    uint8_t mem_base;
+    IcedReg mem_base;
     uint8_t mem_index;
     uint8_t mem_scale;
     uint8_t stack_growth;
-    uint8_t regs [ 4 ];
-    uint8_t types [ 4 ];
+    IcedReg regs [ 4 ];
+    OperandType types [ 4 ];
     uint8_t attributes;
     uint8_t length;
     uint8_t operand_count_visible;
@@ -2222,6 +2222,7 @@ namespace __iced_internal
     };
     char text[64];
   };
+
   static_assert( offsetof ( IcedInstruction, mnemonic ) == 0, "invalid offset" );
   static_assert( offsetof ( IcedInstruction, mem_base ) == 2, "invalid offset" );
   static_assert( offsetof ( IcedInstruction, mem_index ) == 3, "invalid offset" );

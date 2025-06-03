@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <utility>
+#include <vector>
 
 #ifdef ICED_USE_STD_STRING
 #include <string>
@@ -51,63 +52,101 @@ extern "C" {
 /* CLASSES */
 namespace iced
 {
-	struct MemOperand {
-		std::uint8_t base;
-		std::uint8_t index;
-		std::uint8_t scale;
-	};
-	struct Operand {
-		OperandTypeSimple type;
-		union {
-			MemOperand mem;
-			IcedReg reg;
-			std::uint64_t imm;
-		};
-		union {
-			std::uint64_t disp;
-			std::uint64_t imm2;
-		};
-		std::uint8_t size;
+	class Instruction {
+	public:
+		Instruction ( ) = default;
+		Instruction ( const __iced_internal::IcedInstruction& instruction, std::uint64_t ip_ ) : icedInstr ( instruction ), ip ( ip_ ) { }
+		~Instruction ( ) { }
 
-		void setAsRegister ( std::uint8_t _reg, std::uint8_t _size ) {
-			type = OperandTypeSimple::Register;
-			reg = static_cast< IcedReg >( _reg );
-			size = _size;
+		NODISCARD OperandTypeSimple opKindToSimple ( OperandType rawType ) const noexcept {
+			const auto map = static_cast< OperandType >( rawType );
+			switch ( map ) {
+				case OperandType::Memory8:
+				case OperandType::Memory16:
+				case OperandType::Memory32:
+				case OperandType::Memory64:
+				case OperandType::Memory128:
+				case OperandType::Memory256:
+				case OperandType::Memory512:
+					return OperandTypeSimple::Memory;
+				case OperandType::Immediate8:
+				case OperandType::Immediate8_2nd:
+				case OperandType::Immediate16:
+				case OperandType::Immediate32:
+				case OperandType::Immediate64:
+					return OperandTypeSimple::Immediate;
+				case OperandType::Register8:
+				case OperandType::Register16:
+				case OperandType::Register32:
+				case OperandType::Register64:
+				case OperandType::Register128:
+				case OperandType::Register256:
+				case OperandType::Register512:
+					return OperandTypeSimple::Register;
+				case OperandType::NearBranch:
+					return OperandTypeSimple::NearBranch;
+				case OperandType::FarBranch:
+					return OperandTypeSimple::FarBranch;
+				default:
+					return OperandTypeSimple::Invalid;
+			}
+
+			UNREACHABLE ( );
+		}
+		NODISCARD std::size_t opSize ( std::size_t index ) const noexcept {
+			const auto map = icedInstr.types [ index ];
+			switch ( map ) {
+				case OperandType::Memory8:
+				case OperandType::Register8:
+				case OperandType::Immediate8:
+				case OperandType::Immediate8_2nd:
+					return 1;
+				case OperandType::Memory16:
+				case OperandType::Register16:
+				case OperandType::Immediate16:
+					return 2;
+				case OperandType::Memory32:
+				case OperandType::Immediate32:
+				case OperandType::Register32:
+				case OperandType::FarBranch:
+					return 4;
+				case OperandType::Memory64:
+				case OperandType::Register64:
+				case OperandType::Immediate64:
+				case OperandType::NearBranch:
+					return 8;
+				case OperandType::Memory128:
+				case OperandType::Register128:
+					return 16;
+				case OperandType::Memory256:
+				case OperandType::Register256:
+					return 32;
+				case OperandType::Memory512:
+				case OperandType::Register512:
+					return 64;
+				default:
+					return 0ULL;
+			}
+
+			UNREACHABLE ( );
 		}
 
-		void setAsImmediate ( std::uint64_t _imm, std::uint8_t _size ) {
-			type = OperandTypeSimple::Immediate;
-			imm = _imm;
-			size = _size;
-		}
+		NODISCARD std::size_t opWidth ( std::size_t index ) const noexcept { return opSize ( index ) * 8ULL; }
 
-		void setAsMemory ( std::uint8_t base, std::uint8_t index, std::uint8_t scale, std::uint64_t _disp, std::uint8_t _size ) {
-			type = OperandTypeSimple::Memory;
-			mem.base = base;
-			mem.index = index;
-			mem.scale = scale;
-			disp = _disp;
-			size = _size;
-		}
+		NODISCARD OperandType opKind ( std::size_t index ) const noexcept { return static_cast< OperandType >( icedInstr.types [ index ] ); }
+		NODISCARD OperandType op0Kind ( ) const noexcept { return opKind ( 0 ); }
+		NODISCARD OperandType op1Kind ( ) const noexcept { return opKind ( 1 ); }
+		NODISCARD OperandType op2Kind ( ) const noexcept { return opKind ( 2 ); }
+		NODISCARD OperandType op3Kind ( ) const noexcept { return opKind ( 3 ); }
 
-		void setAsNearBranch ( std::uint64_t _disp, std::uint8_t size ) {
-			type = OperandTypeSimple::NearBranch;
-			disp = _disp;
-			size = size;
-		}		
-		
-		void setAsFarBranch ( std::uint64_t _disp, std::uint8_t size ) {
-			type = OperandTypeSimple::FarBranch;
-			disp = _disp;
-			size = size;
-		}
+		NODISCARD OperandTypeSimple opKindSimple ( std::size_t index ) const noexcept { return opKindToSimple ( icedInstr.types [ index ] ); }
+		NODISCARD OperandTypeSimple op0KindSimple ( ) const noexcept { return opKindSimple ( 0 ); }
+		NODISCARD OperandTypeSimple op1KindSimple ( ) const noexcept { return opKindSimple ( 1 ); }
+		NODISCARD OperandTypeSimple op2KindSimple ( ) const noexcept { return opKindSimple ( 2 ); }
+		NODISCARD OperandTypeSimple op3KindSimple ( ) const noexcept { return opKindSimple ( 3 ); }
 
-		std::uint8_t width ( ) {
-			return size * 8;
-		}
-
-		std::string_view typeStr ( ) {
-			switch ( type ) {
+		NODISCARD ICED_STR opKindSimpleStr ( std::size_t operandIndex ) const noexcept {
+			switch ( opKindSimple ( operandIndex ) ) {
 				case OperandTypeSimple::Register:
 					return "Register";
 				case OperandTypeSimple::Memory:
@@ -124,82 +163,33 @@ namespace iced
 
 			UNREACHABLE ( );
 		}
-	};
-	class Instruction {
-	public:
-		Instruction ( ) = default;
-		Instruction ( const __iced_internal::IcedInstruction& instruction, std::uint64_t ip_ ) : icedInstr ( instruction ), ip ( ip_ ) {
-			for ( auto i = 0u; i < 4; ++i ) {
-				switch ( static_cast< OperandType > ( icedInstr.types [ i ] ) ) {
-					case OperandType::Register8:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 1 );
-						break;
-					case OperandType::Register16:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 2 );
-						break;
-					case OperandType::Register32:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 4 );
-						break;
-					case OperandType::Register64:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 8 );
-						break;
-					case OperandType::Register128:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 16 );
-						break;
-					case OperandType::Register256:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 32 );
-						break;
-					case OperandType::Register512:
-						operands [ i ].setAsRegister ( icedInstr.regs [ i ], 64 );
-						break;
-					case OperandType::Immediate8:
-						operands [ i ].setAsImmediate ( icedInstr.immediate, 1 );
-						break;
-					case OperandType::Immediate8_2nd:
-						operands [ i ].setAsImmediate ( icedInstr.immediate2, 1 );
-						break;
-					case OperandType::Immediate16:
-						operands [ i ].setAsImmediate ( icedInstr.immediate2, 2 );
-						break;
-					case OperandType::Immediate32:
-						operands [ i ].setAsImmediate ( icedInstr.immediate2, 4 );
-						break;
-					case OperandType::Immediate64:
-						operands [ i ].setAsImmediate ( icedInstr.immediate2, 8 );
-						break;
-					case OperandType::Memory8:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 1 );
-						break;
-					case OperandType::Memory16:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 2 );
-						break;
-					case OperandType::Memory32:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 4 );
-						break;
-					case OperandType::Memory64:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 8 );
-						break;
-					case OperandType::Memory128:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 16 );
-						break;
-					case OperandType::Memory256:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 32 );
-						break;
-					case OperandType::Memory512:
-						operands [ i ].setAsMemory ( icedInstr.mem_base, icedInstr.mem_index, icedInstr.mem_scale, icedInstr.mem_disp, 64 );
-						break;
-					case OperandType::NearBranch:
-						operands [ i ].setAsNearBranch ( icedInstr.mem_disp, 64 );
-						break;					
-					case OperandType::FarBranch:
-						operands [ i ].setAsFarBranch ( icedInstr.mem_disp, 64 );
-						break;
-					default:
-						break;
-				}
-			}
-		}
-		~Instruction ( ) {}
+
+		NODISCARD ICED_STR op0KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 0 ); }
+		NODISCARD ICED_STR op1KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 1 ); }
+		NODISCARD ICED_STR op2KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 2 ); }
+		NODISCARD ICED_STR op3KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 3 ); }
+
+		NODISCARD IcedReg opReg ( std::size_t index ) const noexcept { return icedInstr.regs [ index ]; }
+		NODISCARD IcedReg op0Reg ( ) const noexcept { return opReg ( 0 ); }
+		NODISCARD IcedReg op1Reg ( ) const noexcept { return opReg ( 1 ); }
+		NODISCARD IcedReg op2Reg ( ) const noexcept { return opReg ( 2 ); }
+		NODISCARD IcedReg op3Reg ( ) const noexcept { return opReg ( 3 ); }
+
+		NODISCARD std::size_t op0Size ( ) const noexcept { return opSize ( 0 ); }
+		NODISCARD std::size_t op1Size ( ) const noexcept { return opSize ( 1 ); }
+		NODISCARD std::size_t op2Size ( ) const noexcept { return opSize ( 2 ); }
+		NODISCARD std::size_t op3Size ( ) const noexcept { return opSize ( 3 ); }
+
+		NODISCARD std::size_t op0Width ( ) const noexcept { return opWidth ( 0 ); }
+		NODISCARD std::size_t op1Width ( ) const noexcept { return opWidth ( 1 ); }
+		NODISCARD std::size_t op2Width ( ) const noexcept { return opWidth ( 2 ); }
+		NODISCARD std::size_t op3Width ( ) const noexcept { return opWidth ( 3 ); }
+
+		NODISCARD std::uint64_t immediate ( ) const noexcept { return icedInstr.immediate; }
+		NODISCARD std::uint64_t displacement ( ) const noexcept { return icedInstr.mem_disp; }
+		NODISCARD std::uint64_t memIndex ( ) const noexcept { return icedInstr.mem_index; }
+		NODISCARD IcedReg memBase ( ) const noexcept { return static_cast< IcedReg >( icedInstr.mem_base ); }
+		//NODISCARD std::uint64_t memIndex ( std::size_t operandIndex ) const noexcept { return icedInstr.mem_index; }
 
 		NODISCARD __iced_internal::IcedInstruction& internalInstruction ( ) { return icedInstr; }
 		NODISCARD std::uint8_t operandCount ( ) const noexcept { return icedInstr.operand_count_visible; }
@@ -249,49 +239,36 @@ namespace iced
 				return false;
 			}
 
-			return operands [ 0 ].type == OperandTypeSimple::Register || operands [ 0 ].type == OperandTypeSimple::Memory;
+			return op0KindSimple ( ) == OperandTypeSimple::Register || op0KindSimple ( ) == OperandTypeSimple::Memory;
 		}
 
-		NODISCARD std::uint64_t computeMemoryAddress ( int operandIndex ) const noexcept {
-			const auto& op = operands [ operandIndex ];
-			if ( op.mem.base == static_cast< std::uint8_t >( IcedReg::RIP ) ) {
-				return ip + instructionLength ( ) + op.disp;
+		NODISCARD std::uint64_t computeMemoryAddress ( ) const noexcept {
+			if ( icedInstr.mem_base == IcedReg::RIP ) {
+				return ip + instructionLength ( ) + icedInstr.mem_disp;
 			}
 
-			if ( !op.mem.base || !op.mem.index ) { // Displacement holds absolute address
-				return op.disp;
+			if ( icedInstr.mem_base == IcedReg::None || !icedInstr.mem_index ) { // Displacement holds absolute address
+				return icedInstr.mem_disp;
 			}
 
 			return 0ULL; // Unresolvable statically
 		}
+		NODISCARD std::uint64_t resolveMemoryTarget ( ) const noexcept { return computeMemoryAddress ( ); }
 
 		NODISCARD std::uint64_t branchTarget ( ) const noexcept {
-			const auto& op = operands [ 0 ];
-
-			switch ( op.type ) {
+			switch ( op0KindSimple ( ) ) {
 				case OperandTypeSimple::Immediate:
-					return op.imm2 ? op.imm2 : op.imm;
+					return icedInstr.immediate2 ? icedInstr.immediate2 : icedInstr.immediate;
 				case OperandTypeSimple::Memory:
 					return resolveMemoryTarget ( );
 				case OperandTypeSimple::NearBranch:
 				case OperandTypeSimple::FarBranch:
-					return ip + instructionLength ( ) + op.disp;
+					return ip + instructionLength ( ) + icedInstr.mem_disp;
 				default:
 					return 0ULL;
 			}
 
 			UNREACHABLE ( );
-		}
-
-		NODISCARD std::uint64_t resolveMemoryTarget ( ) const noexcept {
-			for ( auto i = 0u; i < operandCount ( ); ++i ) {
-				const auto& op = operands [ i ];
-				if ( op.type == OperandTypeSimple::Memory ) {
-					return computeMemoryAddress ( i );
-				}
-			}
-
-			return 0ULL;
 		}
 
 		NODISCARD ICED_STR toString ( ) const noexcept {
@@ -301,7 +278,6 @@ namespace iced
 
 			return icedInstr.text;
 		}
-		Operand operands [ 4 ] { };
 		std::uint64_t ip;
 	private:
 		NODISCARD bool idEquals ( IcedMnemonic mnemonic ) const noexcept { return icedInstr.mnemonic == static_cast< uint16_t >( mnemonic ); }
@@ -368,18 +344,18 @@ namespace iced
 			else {
 				disas ( &icedInstruction, current_ptr, 15 );
 			}
-
-			currentInstruction_ = Instruction { icedInstruction, ip_ };
+			const auto& len = icedInstruction.length;
+			currentInstruction_ = Instruction { std::move ( icedInstruction ), ip_ };
 			lastSuccessfulIp_ = ip_;             // Store IP *before* advancing
-			lastSuccessfulLength_ = icedInstruction.length; // Store length
-			ip_ += icedInstruction.length;
-			offset_ += icedInstruction.length;
-			remainingSize_ -= icedInstruction.length;
+			lastSuccessfulLength_ = len; // Store length
+			ip_ += len;
+			offset_ += len;
+			remainingSize_ -= len;
 			return currentInstruction_;
 		}
 
 	private:
-		Instruction currentInstruction_;
+		Instruction currentInstruction_ {};
 		const std::uint8_t* data_ = nullptr;
 		std::uint64_t ip_ = 0;
 		std::uint64_t baseAddr_ = 0;
