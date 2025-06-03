@@ -95,6 +95,9 @@ fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
         _ => OperandType::Invalid,
       }
     },
+    OpKind::MemorySegDI | OpKind::MemorySegSI => OperandType::Memory8,
+    OpKind::MemoryESEDI | OpKind::MemorySegESI | OpKind::MemorySegEDI  => OperandType::Memory32,
+    OpKind::MemoryESRDI | OpKind::MemorySegRSI | OpKind::MemorySegRDI => OperandType::Memory64,
 
     OpKind::Immediate8 | OpKind::Immediate8to16 | OpKind::Immediate8to32 | OpKind::Immediate8to64 =>
       OperandType::Immediate8,
