@@ -6,8 +6,23 @@ edition = "2018"
 [lib]
 crate-type = ["staticlib"]
 
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+overflow-checks = false
 
+# Additional optimizations
+[profile.release.package."*"]
+opt-level = 3
+codegen-units = 1
 
 [dependencies]
 iced-x86 = "1.21"
 memoffset = "0.9.1"
+
+[build]
+rustflags = ["-C", "target-cpu=native"]

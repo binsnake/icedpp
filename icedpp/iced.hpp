@@ -15,6 +15,8 @@
 #include <cstddef>
 #include <utility>
 #include <vector>
+#include <algorithm>
+#include <cassert>
 
 #ifdef ICED_USE_STD_STRING
 #include <string>
@@ -34,14 +36,17 @@
 
 #if defined(_MSC_VER)
 #define UNREACHABLE() __assume(false)
+#define FORCE_INLINE __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
 #define UNREACHABLE() __builtin_unreachable()
+#define FORCE_INLINE __attribute__((always_inline)) inline
 #else
 #if __cplusplus >= 202302L || _MSVC_LANG >= 202302L
 #define UNREACHABLE() std::unreachable()
 #else
 #define UNREACHABLE() do {} while (0) // Fallback for older standards
 #endif
+#define FORCE_INLINE inline
 #endif
 
 extern "C" {
@@ -107,7 +112,7 @@ namespace iced
 			return FlowControl::Next;
 		}
 
-		NODISCARD OperandKindSimple opKindToSimple ( OperandKind rawType ) const noexcept {
+		NODISCARD FORCE_INLINE OperandKindSimple opKindToSimple ( OperandKind rawType ) const noexcept {
 			const auto map = static_cast< OperandKind >( rawType );
 			switch ( map ) {
 				case OperandKind::Memory8:
@@ -142,7 +147,7 @@ namespace iced
 
 			return OperandKindSimple::Invalid;
 		}
-		NODISCARD std::size_t opSize ( std::size_t index ) const noexcept {
+		NODISCARD FORCE_INLINE std::size_t opSize ( std::size_t index ) const noexcept {
 			const auto map = icedInstr.types [ index ];
 			switch ( map ) {
 				case OperandKind::Memory8:
@@ -180,19 +185,19 @@ namespace iced
 			return 0ULL;
 		}
 
-		NODISCARD inline std::size_t opWidth ( std::size_t index ) const noexcept { return opSize ( index ) * 8ULL; }
+		NODISCARD FORCE_INLINE std::size_t opWidth ( std::size_t index ) const noexcept { return opSize ( index ) * 8ULL; }
 
-		NODISCARD inline OperandKind opKind ( std::size_t index ) const noexcept { return static_cast< OperandKind >( icedInstr.types [ index ] ); }
-		NODISCARD inline OperandKind op0Kind ( ) const noexcept { return opKind ( 0 ); }
-		NODISCARD inline OperandKind op1Kind ( ) const noexcept { return opKind ( 1 ); }
-		NODISCARD inline OperandKind op2Kind ( ) const noexcept { return opKind ( 2 ); }
-		NODISCARD inline OperandKind op3Kind ( ) const noexcept { return opKind ( 3 ); }
+		NODISCARD FORCE_INLINE OperandKind opKind ( std::size_t index ) const noexcept { return static_cast< OperandKind >( icedInstr.types [ index ] ); }
+		NODISCARD FORCE_INLINE OperandKind op0Kind ( ) const noexcept { return opKind ( 0 ); }
+		NODISCARD FORCE_INLINE OperandKind op1Kind ( ) const noexcept { return opKind ( 1 ); }
+		NODISCARD FORCE_INLINE OperandKind op2Kind ( ) const noexcept { return opKind ( 2 ); }
+		NODISCARD FORCE_INLINE OperandKind op3Kind ( ) const noexcept { return opKind ( 3 ); }
 
-		NODISCARD inline OperandKindSimple opKindSimple ( std::size_t index ) const noexcept { return opKindToSimple ( icedInstr.types [ index ] ); }
-		NODISCARD inline OperandKindSimple op0KindSimple ( ) const noexcept { return opKindSimple ( 0 ); }
-		NODISCARD inline OperandKindSimple op1KindSimple ( ) const noexcept { return opKindSimple ( 1 ); }
-		NODISCARD inline OperandKindSimple op2KindSimple ( ) const noexcept { return opKindSimple ( 2 ); }
-		NODISCARD inline OperandKindSimple op3KindSimple ( ) const noexcept { return opKindSimple ( 3 ); }
+		NODISCARD FORCE_INLINE OperandKindSimple opKindSimple ( std::size_t index ) const noexcept { return opKindToSimple ( icedInstr.types [ index ] ); }
+		NODISCARD FORCE_INLINE OperandKindSimple op0KindSimple ( ) const noexcept { return opKindSimple ( 0 ); }
+		NODISCARD FORCE_INLINE OperandKindSimple op1KindSimple ( ) const noexcept { return opKindSimple ( 1 ); }
+		NODISCARD FORCE_INLINE OperandKindSimple op2KindSimple ( ) const noexcept { return opKindSimple ( 2 ); }
+		NODISCARD FORCE_INLINE OperandKindSimple op3KindSimple ( ) const noexcept { return opKindSimple ( 3 ); }
 
 		NODISCARD ICED_STR opKindSimpleStr ( std::size_t operandIndex ) const noexcept {
 			switch ( opKindSimple ( operandIndex ) ) {
@@ -213,45 +218,44 @@ namespace iced
 			return "Invalid";
 		}
 
-		NODISCARD inline ICED_STR op0KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 0 ); }
-		NODISCARD inline ICED_STR op1KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 1 ); }
-		NODISCARD inline ICED_STR op2KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 2 ); }
-		NODISCARD inline ICED_STR op3KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 3 ); }
+		NODISCARD FORCE_INLINE ICED_STR op0KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 0 ); }
+		NODISCARD FORCE_INLINE ICED_STR op1KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 1 ); }
+		NODISCARD FORCE_INLINE ICED_STR op2KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 2 ); }
+		NODISCARD FORCE_INLINE ICED_STR op3KindSimpleStr ( ) const noexcept { return opKindSimpleStr ( 3 ); }
 
-		NODISCARD inline IcedReg opReg ( std::size_t index ) const noexcept { return icedInstr.regs [ index ]; }
-		NODISCARD inline IcedReg op0Reg ( ) const noexcept { return opReg ( 0 ); }
-		NODISCARD inline IcedReg op1Reg ( ) const noexcept { return opReg ( 1 ); }
-		NODISCARD inline IcedReg op2Reg ( ) const noexcept { return opReg ( 2 ); }
-		NODISCARD inline IcedReg op3Reg ( ) const noexcept { return opReg ( 3 ); }
+		NODISCARD FORCE_INLINE IcedReg opReg ( std::size_t index ) const noexcept { return icedInstr.regs [ index ]; }
+		NODISCARD FORCE_INLINE IcedReg op0Reg ( ) const noexcept { return opReg ( 0 ); }
+		NODISCARD FORCE_INLINE IcedReg op1Reg ( ) const noexcept { return opReg ( 1 ); }
+		NODISCARD FORCE_INLINE IcedReg op2Reg ( ) const noexcept { return opReg ( 2 ); }
+		NODISCARD FORCE_INLINE IcedReg op3Reg ( ) const noexcept { return opReg ( 3 ); }
 
-		NODISCARD inline std::size_t op0Size ( ) const noexcept { return opSize ( 0 ); }
-		NODISCARD inline std::size_t op1Size ( ) const noexcept { return opSize ( 1 ); }
-		NODISCARD inline std::size_t op2Size ( ) const noexcept { return opSize ( 2 ); }
-		NODISCARD inline std::size_t op3Size ( ) const noexcept { return opSize ( 3 ); }
+		NODISCARD FORCE_INLINE std::size_t op0Size ( ) const noexcept { return opSize ( 0 ); }
+		NODISCARD FORCE_INLINE std::size_t op1Size ( ) const noexcept { return opSize ( 1 ); }
+		NODISCARD FORCE_INLINE std::size_t op2Size ( ) const noexcept { return opSize ( 2 ); }
+		NODISCARD FORCE_INLINE std::size_t op3Size ( ) const noexcept { return opSize ( 3 ); }
 
-		NODISCARD inline std::size_t op0Width ( ) const noexcept { return opWidth ( 0 ); }
-		NODISCARD inline std::size_t op1Width ( ) const noexcept { return opWidth ( 1 ); }
-		NODISCARD inline std::size_t op2Width ( ) const noexcept { return opWidth ( 2 ); }
-		NODISCARD inline std::size_t op3Width ( ) const noexcept { return opWidth ( 3 ); }
+		NODISCARD FORCE_INLINE std::size_t op0Width ( ) const noexcept { return opWidth ( 0 ); }
+		NODISCARD FORCE_INLINE std::size_t op1Width ( ) const noexcept { return opWidth ( 1 ); }
+		NODISCARD FORCE_INLINE std::size_t op2Width ( ) const noexcept { return opWidth ( 2 ); }
+		NODISCARD FORCE_INLINE std::size_t op3Width ( ) const noexcept { return opWidth ( 3 ); }
 
-		NODISCARD inline std::uint64_t immediate ( ) const noexcept { return icedInstr.immediate; }
-		NODISCARD inline std::uint64_t displacement ( ) const noexcept { return icedInstr.mem_disp; }
-		NODISCARD inline std::uint64_t memIndex ( ) const noexcept { return icedInstr.mem_index; }
-		NODISCARD inline IcedReg memBase ( ) const noexcept { return static_cast< IcedReg >( icedInstr.mem_base ); }
-		//NODISCARD std::uint64_t memIndex ( std::size_t operandIndex ) const noexcept { return icedInstr.mem_index; }
+		NODISCARD FORCE_INLINE std::uint64_t immediate ( ) const noexcept { return icedInstr.immediate; }
+		NODISCARD FORCE_INLINE std::uint64_t displacement ( ) const noexcept { return icedInstr.mem_disp; }
+		NODISCARD FORCE_INLINE std::uint64_t memIndex ( ) const noexcept { return icedInstr.mem_index; }
+		NODISCARD FORCE_INLINE IcedReg memBase ( ) const noexcept { return static_cast< IcedReg >( icedInstr.mem_base ); }
 
-		NODISCARD inline __iced_internal::IcedInstruction& internalInstruction ( ) { return icedInstr; }
-		NODISCARD inline std::uint8_t operandCount ( ) const noexcept { return icedInstr.operand_count_visible; }
-		NODISCARD inline std::uint8_t instructionLength ( ) const noexcept { return icedInstr.length; }
-		NODISCARD inline IcedMnemonic mnemonic ( ) const noexcept { return static_cast< IcedMnemonic >( icedInstr.mnemonic ); }
-		NODISCARD inline bool valid ( ) const noexcept { return icedInstr.mnemonic != IcedMnemonic::INVALID; }
-		NODISCARD inline std::uint8_t stackGrowth ( ) const noexcept { return icedInstr.stack_growth; }
-		NODISCARD inline bool isLea ( ) const noexcept { return idEquals ( IcedMnemonic::Lea ); }
-		NODISCARD inline bool isMov ( ) const noexcept { return idEquals ( IcedMnemonic::Mov ); }
-		NODISCARD inline bool isBp ( ) const noexcept { return idEquals ( IcedMnemonic::Int3 ); }
-		NODISCARD inline bool isNop ( ) const noexcept { return idEquals ( IcedMnemonic::Nop ); }
-		NODISCARD inline bool isCall ( ) const noexcept { return idEquals ( IcedMnemonic::Call ); }
-		NODISCARD inline bool isJmp ( ) const noexcept { return idEquals ( IcedMnemonic::Jmp ); }
+		NODISCARD FORCE_INLINE __iced_internal::IcedInstruction& internalInstruction ( ) { return icedInstr; }
+		NODISCARD FORCE_INLINE std::uint8_t operandCount ( ) const noexcept { return icedInstr.operand_count_visible; }
+		NODISCARD FORCE_INLINE std::uint8_t instructionLength ( ) const noexcept { return icedInstr.length; }
+		NODISCARD FORCE_INLINE IcedMnemonic mnemonic ( ) const noexcept { return static_cast< IcedMnemonic >( icedInstr.mnemonic ); }
+		NODISCARD FORCE_INLINE bool valid ( ) const noexcept { return icedInstr.mnemonic != IcedMnemonic::INVALID; }
+		NODISCARD FORCE_INLINE std::uint8_t stackGrowth ( ) const noexcept { return icedInstr.stack_growth; }
+		NODISCARD FORCE_INLINE bool isLea ( ) const noexcept { return idEquals ( IcedMnemonic::Lea ); }
+		NODISCARD FORCE_INLINE bool isMov ( ) const noexcept { return idEquals ( IcedMnemonic::Mov ); }
+		NODISCARD FORCE_INLINE bool isBp ( ) const noexcept { return idEquals ( IcedMnemonic::Int3 ); }
+		NODISCARD FORCE_INLINE bool isNop ( ) const noexcept { return idEquals ( IcedMnemonic::Nop ); }
+		NODISCARD FORCE_INLINE bool isCall ( ) const noexcept { return idEquals ( IcedMnemonic::Call ); }
+		NODISCARD FORCE_INLINE bool isJmp ( ) const noexcept { return idEquals ( IcedMnemonic::Jmp ); }
 		NODISCARD bool isJcc ( ) const noexcept {
 			switch ( mnemonic ( ) ) {
 				case IcedMnemonic::Jb:
@@ -279,18 +283,18 @@ namespace iced
 			}
 			return false;
 		}
-		NODISCARD inline bool isJump ( ) const noexcept { return isJmp ( ) || isJcc ( ); }
-		NODISCARD inline bool isBranching ( ) const noexcept { return isCall ( ) || isJump ( ); }
-		NODISCARD inline bool isConditionalBranch ( ) const noexcept { return isJcc ( ); }
-		NODISCARD inline bool isUnconditionalBranch ( ) const noexcept { return isCall ( ) || isJmp ( ); }
-		NODISCARD inline bool isIndirectCall ( ) const noexcept {
+		NODISCARD FORCE_INLINE bool isJump ( ) const noexcept { return isJmp ( ) || isJcc ( ); }
+		NODISCARD FORCE_INLINE bool isBranching ( ) const noexcept { return isCall ( ) || isJump ( ); }
+		NODISCARD FORCE_INLINE bool isConditionalBranch ( ) const noexcept { return isJcc ( ); }
+		NODISCARD FORCE_INLINE bool isUnconditionalBranch ( ) const noexcept { return isCall ( ) || isJmp ( ); }
+		NODISCARD FORCE_INLINE bool isIndirectCall ( ) const noexcept {
 			if ( !isCall ( ) ) {
 				return false;
 			}
 
 			return op0KindSimple ( ) == OperandKindSimple::Register || op0KindSimple ( ) == OperandKindSimple::Memory;
 		}
-		NODISCARD bool isRet() const noexcept {
+		NODISCARD bool isRet ( ) const noexcept {
 			switch ( icedInstr.mnemonic ) {
 				case IcedMnemonic::Ret:
 				case IcedMnemonic::Iret:
@@ -308,7 +312,7 @@ namespace iced
 			return false;
 		}
 
-		NODISCARD inline std::uint64_t computeMemoryAddress ( ) const noexcept {
+		NODISCARD FORCE_INLINE std::uint64_t computeMemoryAddress ( ) const noexcept {
 			if ( icedInstr.mem_base == IcedReg::RIP ) {
 				return ip + instructionLength ( ) + icedInstr.mem_disp;
 			}
@@ -319,7 +323,7 @@ namespace iced
 
 			return 0ULL; // Unresolvable statically
 		}
-		NODISCARD inline std::uint64_t resolveMemoryTarget ( ) const noexcept { return computeMemoryAddress ( ); }
+		NODISCARD FORCE_INLINE std::uint64_t resolveMemoryTarget ( ) const noexcept { return computeMemoryAddress ( ); }
 		NODISCARD std::uint64_t branchTarget ( ) const noexcept {
 			switch ( op0KindSimple ( ) ) {
 				case OperandKindSimple::Immediate:
@@ -336,7 +340,7 @@ namespace iced
 			UNREACHABLE ( );
 		}
 
-		NODISCARD inline ICED_STR toString ( ) const noexcept {
+		NODISCARD FORCE_INLINE ICED_STR toString ( ) const noexcept {
 			if ( !valid ( ) ) {
 				return "Invalid instruction";
 			}
@@ -345,90 +349,187 @@ namespace iced
 		}
 		std::uint64_t ip;
 	private:
-		NODISCARD inline bool idEquals ( IcedMnemonic mnemonic ) const noexcept { return icedInstr.mnemonic == mnemonic; }
+		NODISCARD FORCE_INLINE bool idEquals ( IcedMnemonic mnemonic ) const noexcept { return icedInstr.mnemonic == mnemonic; }
 		__iced_internal::IcedInstruction icedInstr;
 	};
 
-	template <bool IcedDebug = true>
-	class Decoder {
+	class DecoderBase {
 	public:
-		Decoder ( ) = delete;
-		Decoder ( const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL, std::uint64_t baseAddress = 0ULL )
-			: data_ ( buffer ), ip_ ( baseAddress ), baseAddr_ ( baseAddress ), size_ ( size ),
-			offset_ ( 0UL ), remainingSize_ ( size ) { }
+		DecoderBase ( ) = delete;
+		DecoderBase ( const std::uint8_t* buffer, std::size_t size, std::uint64_t baseAddress )
+			: data_ ( buffer ), ip_ ( baseAddress ), baseAddr_ ( baseAddress ), size_ ( size ), offset_ ( 0 ),
+			lastSuccessfulIp_ ( 0 ), lastSuccessfulLength_ ( 0 ) {
+			assert ( buffer != nullptr && "Buffer cannot be null" );
+			assert ( size > 0 && "Buffer size must be greater than 0" );
+		}
 
-		Decoder ( const Decoder& ) = delete;
-		Decoder& operator=( const Decoder& ) = delete;
-		Decoder ( Decoder&& other ) : data_ ( other.data_ ), ip_ ( other.ip_ ), baseAddr_ ( other.baseAddr_ ), size_ ( other.size_ ),
-			offset_ ( other.offset_ ), remainingSize_ ( other.size_ ) { }
-		Decoder& operator=( Decoder&& other ) {
+		DecoderBase ( const DecoderBase& ) = delete;
+		DecoderBase& operator=( const DecoderBase& ) = delete;
+
+		DecoderBase ( DecoderBase&& other ) noexcept
+			: data_ ( other.data_ ), ip_ ( other.ip_ ), baseAddr_ ( other.baseAddr_ ),
+			size_ ( other.size_ ), offset_ ( other.offset_ ),
+			lastSuccessfulIp_ ( other.lastSuccessfulIp_ ),
+			lastSuccessfulLength_ ( other.lastSuccessfulLength_ ),
+			currentInstruction_ ( std::move ( other.currentInstruction_ ) ) {
+			other.data_ = nullptr;
+			other.size_ = 0;
+		}
+
+		DecoderBase& operator=( DecoderBase&& other ) noexcept {
 			if ( this != &other ) {
 				data_ = other.data_;
 				ip_ = other.ip_;
 				baseAddr_ = other.baseAddr_;
 				size_ = other.size_;
 				offset_ = other.offset_;
-				remainingSize_ = other.remainingSize_;
 				lastSuccessfulIp_ = other.lastSuccessfulIp_;
 				lastSuccessfulLength_ = other.lastSuccessfulLength_;
+				currentInstruction_ = std::move ( other.currentInstruction_ );
+				other.data_ = nullptr;
+				other.size_ = 0;
 			}
 			return *this;
-		};
-		~Decoder ( ) = default;
-
-		NODISCARD std::uint64_t ip ( ) const noexcept { return ip_; }
-		NODISCARD Instruction& getCurrentInstruction ( ) const noexcept { return currentInstruction_; }
-		NODISCARD bool canDecode ( ) const noexcept { return remainingSize_ > 0 && offset_ < size_; }
-		NODISCARD std::uint64_t lastSuccessfulIp ( ) const noexcept { return lastSuccessfulIp_; }
-		NODISCARD std::uint16_t lastSuccessfulLength ( ) const noexcept { return lastSuccessfulLength_; }
-
-		void setIp ( std::uint64_t ip ) noexcept {
-			ip_ = ip;
-			offset_ = ip - baseAddr_;
-			remainingSize_ = size_ - offset_;
 		}
 
-		void reconfigure ( const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL, std::uint64_t baseAddress = 0ULL ) noexcept {
+		virtual ~DecoderBase ( ) = default;
+
+		NODISCARD FORCE_INLINE std::uint64_t ip ( ) const noexcept { return ip_; }
+		NODISCARD FORCE_INLINE const Instruction& getCurrentInstruction ( ) const noexcept { return currentInstruction_; }
+		NODISCARD FORCE_INLINE Instruction& getCurrentInstruction ( ) noexcept { return currentInstruction_; }
+		NODISCARD FORCE_INLINE bool canDecode ( ) const noexcept { return offset_ < size_; }
+		NODISCARD FORCE_INLINE std::uint64_t lastSuccessfulIp ( ) const noexcept { return lastSuccessfulIp_; }
+		NODISCARD FORCE_INLINE std::uint16_t lastSuccessfulLength ( ) const noexcept { return lastSuccessfulLength_; }
+		NODISCARD FORCE_INLINE std::size_t remainingSize ( ) const noexcept { return size_ - offset_; }
+
+		bool setIp ( std::uint64_t ip ) noexcept {
+			if ( ip < baseAddr_ || ip >= baseAddr_ + size_ ) {
+				return false; // Out of bounds
+			}
+			ip_ = ip;
+			offset_ = ip - baseAddr_;
+			return true;
+		}
+
+		void reconfigure ( const std::uint8_t* buffer, std::size_t size, std::uint64_t baseAddress ) noexcept {
+			assert ( buffer != nullptr && "Buffer cannot be null" );
+			assert ( size > 0 && "Buffer size must be greater than 0" );
+
 			data_ = buffer;
 			size_ = size;
 			baseAddr_ = baseAddress;
-			remainingSize_ = size;
-			currentInstruction_ = { 0 };
-			offset_ = lastSuccessfulIp_ = lastSuccessfulLength_ = 0;
+			ip_ = baseAddress;
+			offset_ = 0;
+			lastSuccessfulIp_ = 0;
+			lastSuccessfulLength_ = 0;
+			currentInstruction_ = Instruction {};
 		}
+
+		void reset ( ) noexcept {
+			ip_ = baseAddr_;
+			offset_ = 0;
+			lastSuccessfulIp_ = 0;
+			lastSuccessfulLength_ = 0;
+			currentInstruction_ = Instruction {};
+		}
+
+	protected:
+		FORCE_INLINE void updateState ( const __iced_internal::IcedInstruction& icedInstruction ) noexcept {
+			const auto len = icedInstruction.length;
+			currentInstruction_ = Instruction { icedInstruction, ip_ };
+			lastSuccessfulIp_ = ip_;
+			lastSuccessfulLength_ = len;
+			ip_ += len;
+			offset_ += len;
+		}
+
+		const std::uint8_t* data_;
+		std::uint64_t ip_;
+		std::size_t offset_;
+
+		std::uint64_t baseAddr_;
+		std::size_t size_;
+		std::uint64_t lastSuccessfulIp_;
+		std::uint16_t lastSuccessfulLength_;
+
+		Instruction currentInstruction_;
+	};
+
+	class Decoder : public DecoderBase {
+	private:
+		using DisasmFunc = int( * )( void*, const void*, std::size_t );
+		DisasmFunc disasmFunction_;
+
+	public:
+		explicit Decoder ( const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL,
+						std::uint64_t baseAddress = 0ULL, bool debug = true )
+			: DecoderBase ( buffer, size, baseAddress ),
+			disasmFunction_ ( debug ? disas2 : disas ) { }
 
 		NODISCARD Instruction& decode ( ) noexcept {
 			const auto* current_ptr = data_ + offset_;
-			const auto code_size = remainingSize_;
-			const auto address = ip_;
+			const auto code_size = remainingSize ( );
 
-			__iced_internal::IcedInstruction icedInstruction { };
-			if constexpr ( IcedDebug ) {
-				disas2 ( &icedInstruction, current_ptr, 15 );
-			}
-			else {
-				disas ( &icedInstruction, current_ptr, 15 );
-			}
-			const auto& len = icedInstruction.length;
-			currentInstruction_ = Instruction { std::move ( icedInstruction ), ip_ };
-			lastSuccessfulIp_ = ip_;             // Store IP *before* advancing
-			lastSuccessfulLength_ = len; // Store length
-			ip_ += len;
-			offset_ += len;
-			remainingSize_ -= len;
+			__iced_internal::IcedInstruction icedInstruction {};
+
+			constexpr auto decode_size = 16ULL;
+			disasmFunction_ ( &icedInstruction, current_ptr, decode_size );
+
+			updateState ( icedInstruction );
 			return currentInstruction_;
 		}
 
-	private:
-		Instruction currentInstruction_ {};
-		const std::uint8_t* data_ = nullptr;
-		std::uint64_t ip_ = 0;
-		std::uint64_t baseAddr_ = 0;
-		const std::size_t size_ = 0;
-		std::size_t remainingSize_ = 0;
-		std::size_t offset_ = 0;
-		std::uint64_t lastSuccessfulIp_ = 0;
-		std::uint16_t lastSuccessfulLength_ = 0;
+		void setDebugMode ( bool debug ) noexcept {
+			disasmFunction_ = debug ? disas2 : disas;
+		}
 	};
+
+	class DebugDecoder : public DecoderBase {
+	public:
+		explicit DebugDecoder ( const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL,
+							 std::uint64_t baseAddress = 0ULL )
+			: DecoderBase ( buffer, size, baseAddress ) { }
+
+		NODISCARD Instruction& decode ( ) noexcept {
+			const auto* current_ptr = data_ + offset_;
+			const auto code_size = remainingSize ( );
+
+			__iced_internal::IcedInstruction icedInstruction {};
+			const auto decode_size = std::min ( static_cast< std::size_t >( 16 ), code_size );
+			disas2 ( &icedInstruction, current_ptr, decode_size );
+
+			updateState ( icedInstruction );
+			return currentInstruction_;
+		}
+	};
+
+	class ReleaseDecoder : public DecoderBase {
+	public:
+		explicit ReleaseDecoder ( const std::uint8_t* buffer = nullptr, std::size_t size = 15ULL,
+								 std::uint64_t baseAddress = 0ULL )
+			: DecoderBase ( buffer, size, baseAddress ) { }
+
+		NODISCARD Instruction& decode ( ) noexcept {
+			const auto* current_ptr = data_ + offset_;
+			const auto code_size = remainingSize ( );
+
+			__iced_internal::IcedInstruction icedInstruction {};
+			const auto decode_size = std::min ( static_cast< std::size_t >( 16 ), code_size );
+			disas ( &icedInstruction, current_ptr, decode_size );
+
+			updateState ( icedInstruction );
+			return currentInstruction_;
+		}
+	};
+
+	template<bool Debug = true>
+	NODISCARD auto makeDecoder ( const std::uint8_t* buffer, std::size_t size, std::uint64_t baseAddress = 0ULL ) {
+		if constexpr ( Debug ) {
+			return DebugDecoder ( buffer, size, baseAddress );
+		}
+		else {
+			return ReleaseDecoder ( buffer, size, baseAddress );
+		}
+	}
 };
 #endif

@@ -52,6 +52,7 @@ pub struct MergenDisassembledInstructionBase {
   pub text: [u8; 64],
 }
 
+// Compile-time offset assertions
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, mnemonic) == 0, "invalid offset");
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, mem_base) == 2, "invalid offset");
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, mem_index) == 3, "invalid offset");
@@ -66,96 +67,119 @@ const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, immediate) =
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, mem_disp) == 32, "invalid offset");
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, text) == 40, "invalid offset");
 
-#[inline]
-fn has_64bit_immediate(instr: &Instruction) -> bool {
-  (0..instr.op_count()).any(|i| instr.op_kind(i) == OpKind::Immediate64)
-}
-
-#[inline]
-fn is_relative_jump(instr: &Instruction) -> bool {
-  instr.memory_base() == Register::RIP ||
-      (0..instr.op_count()).any(|i| matches!(instr.op_kind(i), OpKind::NearBranch16 | OpKind::NearBranch32 | OpKind::NearBranch64))
-}
-
-#[inline]
+#[inline(always)]
 fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
   match instr.op_kind(index) {
-    OpKind::Register => match instr.op_register(index).size() {
-      1 => OperandType::Register8,
-      2 => OperandType::Register16,
-      4 => OperandType::Register32,
-      8 => OperandType::Register64,
-      16 => OperandType::Register128,
-      32 => OperandType::Register256,
-      64 => OperandType::Register512,
-      _ => OperandType::Invalid,
+    OpKind::Register => {
+      match instr.op_register(index).size() {
+        1 => OperandType::Register8,
+        2 => OperandType::Register16,
+        4 => OperandType::Register32,
+        8 => OperandType::Register64,
+        16 => OperandType::Register128,
+        32 => OperandType::Register256,
+        64 => OperandType::Register512,
+        _ => OperandType::Invalid,
+      }
     },
-    OpKind::Immediate8 | OpKind::Immediate8to16 | OpKind::Immediate8to32 | OpKind::Immediate8to64 => OperandType::Immediate8,
+
+    OpKind::Memory => {
+      match instr.memory_size().size() {
+        1 => OperandType::Memory8,
+        2 => OperandType::Memory16,
+        4 => OperandType::Memory32,
+        8 => OperandType::Memory64,
+        16 => OperandType::Memory128,
+        32 => OperandType::Memory256,
+        64 => OperandType::Memory512,
+        _ => OperandType::Invalid,
+      }
+    },
+
+    OpKind::Immediate8 | OpKind::Immediate8to16 | OpKind::Immediate8to32 | OpKind::Immediate8to64 =>
+      OperandType::Immediate8,
     OpKind::Immediate8_2nd => OperandType::Immediate8_2nd,
     OpKind::Immediate16 => OperandType::Immediate16,
     OpKind::Immediate32 | OpKind::Immediate32to64 => OperandType::Immediate32,
     OpKind::Immediate64 => OperandType::Immediate64,
     OpKind::NearBranch16 | OpKind::NearBranch32 | OpKind::NearBranch64 => OperandType::NearBranch,
     OpKind::FarBranch16 | OpKind::FarBranch32 => OperandType::FarBranch,
-    OpKind::Memory => match instr.memory_size().size() {
-      1 => OperandType::Memory8,
-      2 => OperandType::Memory16,
-      4 => OperandType::Memory32,
-      8 => OperandType::Memory64,
-      16 => OperandType::Memory128,
-      32 => OperandType::Memory256,
-      64 => OperandType::Memory512,
-      _ => OperandType::Invalid,
-    },
     _ => OperandType::Invalid,
   }
 }
 
-#[inline]
-fn decode_instruction(code_ptr: *const u8, len: usize) -> Option<(Instruction, &'static [u8])> {
-  if code_ptr.is_null() || len == 0 {
-    return None;
-  }
-  let code = unsafe { slice::from_raw_parts(code_ptr, len) };
-  let mut decoder = Decoder::new(64, code, DecoderOptions::NO_INVALID_CHECK);
-  Some((decoder.decode(), code))
-}
-
-#[inline]
+#[inline(always)]
 fn set_attributes(instr: &Instruction) -> u8 {
-  let mut attrs = PREFIX_NONE;
-  if instr.has_rep_prefix() { attrs |= PREFIX_REP; }
-  if instr.has_repne_prefix() { attrs |= PREFIX_REPNE; }
-  if instr.has_lock_prefix() { attrs |= PREFIX_LOCK; }
-  attrs
+  (if instr.has_rep_prefix() { PREFIX_REP } else { 0 }) |
+      (if instr.has_repne_prefix() { PREFIX_REPNE } else { 0 }) |
+      (if instr.has_lock_prefix() { PREFIX_LOCK } else { 0 })
 }
 
-#[no_mangle]
-pub extern "C" fn disas(
-  out: *mut MergenDisassembledInstructionBase,
-  code_ptr: *const u8,
-  len: usize,
-) -> i32 {
-  let Some((instr, _)) = decode_instruction(code_ptr, len) else { return -1; };
-  if out.is_null() { return -1; }
+const HAS_64BIT_IMM: u8 = 0b01;
+const IS_RELATIVE: u8 = 0b10;
 
+#[inline(always)]
+fn analyze_instruction_bitfield(instr: &Instruction) -> u8 {
+  let mut flags = 0u8;
+
+  // Check RIP-relative first (common case)
+  if instr.memory_base() == Register::RIP {
+    flags |= IS_RELATIVE;
+  }
+
+  // Use iterator with early termination
+  let op_count = instr.op_count();
+  for i in 0..op_count {
+    match instr.op_kind(i) {
+      OpKind::Immediate64 => {
+        flags |= HAS_64BIT_IMM;
+        if flags == (HAS_64BIT_IMM | IS_RELATIVE) { return flags; }
+      },
+      OpKind::NearBranch16 | OpKind::NearBranch32 | OpKind::NearBranch64 => {
+        flags |= IS_RELATIVE;
+        if flags == (HAS_64BIT_IMM | IS_RELATIVE) { return flags; }
+      },
+      _ => {}
+    }
+  }
+
+  flags
+}
+
+// Shared implementation for both disas functions
+#[inline(always)]
+fn disassemble_instruction(instr: &Instruction) -> MergenDisassembledInstructionBase {
+  let instr_len = instr.len();
+  let instr_len_u8 = instr_len as u8;
+  let instr_len_u64 = instr_len as u64;
   let disp64 = instr.memory_displacement64();
-  let instr_len = instr.len() as u64;
-  let is_rel = is_relative_jump(&instr);
+  let flags = analyze_instruction_bitfield(&instr);
+  let is_rel = (flags & IS_RELATIVE) != 0;
+  let adjusted_disp = disp64.wrapping_sub(instr_len_u64);
+
   let immediate = if is_rel {
-    disp64.wrapping_sub(instr_len)
-  } else if has_64bit_immediate(&instr) {
+    adjusted_disp
+  } else if (flags & HAS_64BIT_IMM) != 0 {
     instr.immediate64()
   } else {
     instr.immediate32() as u64
   };
 
-  let out_value = MergenDisassembledInstructionBase {
+  // Optimize type array creation
+  let types = unsafe {
+    let mut t = [0u8; 4];
+    for i in 0..4 {
+      *t.get_unchecked_mut(i) = convert_type_to_mergen(&instr, i as u32) as u8;
+    }
+    t
+  };
+
+  MergenDisassembledInstructionBase {
     mnemonic: instr.mnemonic() as u16,
     mem_base: instr.memory_base() as u8,
     mem_index: instr.memory_index() as u8,
     mem_scale: instr.memory_index_scale() as u8,
-    mem_disp: if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
+    mem_disp: if is_rel { adjusted_disp } else { disp64 },
     stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
     immediate,
     regs: [
@@ -164,19 +188,42 @@ pub extern "C" fn disas(
       instr.op2_register() as u8,
       instr.op3_register() as u8,
     ],
-    types: [
-      convert_type_to_mergen(&instr, 0) as u8,
-      convert_type_to_mergen(&instr, 1) as u8,
-      convert_type_to_mergen(&instr, 2) as u8,
-      convert_type_to_mergen(&instr, 3) as u8,
-    ],
+    types,
     operand_count_visible: instr.op_count() as u8,
     attributes: set_attributes(&instr),
-    length: instr.len() as u8,
+    length: instr_len_u8,
     text: [0u8; 64],
-  };
-  unsafe { ptr::write(out, out_value) };
+  }
+}
+
+#[cold]
+#[inline(never)]
+fn handle_error() -> i32 { -1 }
+
+#[no_mangle]
+pub extern "C" fn disas(
+  out: *mut MergenDisassembledInstructionBase,
+  code_ptr: *const u8,
+  len: usize,
+) -> i32 {
+  if code_ptr.is_null() || len == 0 || out.is_null() {
+    return handle_error();
+  }
+
+  let code = unsafe { slice::from_raw_parts(code_ptr, len) };
+  let mut decoder = Decoder::new(64, code, DecoderOptions::NO_INVALID_CHECK);
+  let mut instr = Instruction::default();
+  decoder.decode_out(&mut instr);
+
+  let result = disassemble_instruction(&instr);
+  unsafe { *out = result; }
+
   0
+}
+
+// Thread-local reusable String to minimize allocations
+thread_local! {
+    static CACHED_STRING: std::cell::RefCell<String> = std::cell::RefCell::new(String::with_capacity(64));
 }
 
 #[no_mangle]
@@ -186,11 +233,15 @@ pub extern "C" fn disas2(
   len: usize,
 ) -> i32 {
   if out.is_null() || code_ptr.is_null() || len == 0 {
-    return -1;
+    return handle_error();
   }
+
   let code = unsafe { slice::from_raw_parts(code_ptr, len) };
-  let mut decoder = Decoder::new(64, code, DecoderOptions::NONE);
-  let instr = decoder.decode();
+  let mut decoder = Decoder::new(64, code, DecoderOptions::NO_INVALID_CHECK);
+  let mut instr = Instruction::default();
+  decoder.decode_out(&mut instr);
+
+  // Specialized formatter options
   struct MyTraitOptions;
   impl SpecializedFormatterTraitOptions for MyTraitOptions {
     const ENABLE_DB_DW_DD_DQ: bool = false;
@@ -198,61 +249,30 @@ pub extern "C" fn disas2(
       false
     }
   }
+
   type MyFormatter = SpecializedFormatter<MyTraitOptions>;
   let mut formatter = MyFormatter::new();
-  let mut formatted = String::new();
-  formatter.format(&instr, &mut formatted);
-  let bytes = formatted.as_bytes();
-  let mut text = [0u8; 64];
-  let copy_len = bytes.len().min(63); // Reserve 1 byte for null terminator
-  text[..copy_len].copy_from_slice(&bytes[..copy_len]);
-  text[copy_len] = 0; // Null-terminate
-  let disp64 = instr.memory_displacement64();
-  let instr_len = instr.len() as u64;
-  let is_rel = is_relative_jump(&instr);
-  let has_imm64 = has_64bit_immediate(&instr);
-  let immediate = if is_rel {
-    disp64.wrapping_sub(instr_len)
-  } else if has_imm64 {
-    instr.immediate64() as u64
-  } else {
-    instr.immediate32() as u64
-  };
-  let mut attrs = 0u8;
-  if instr.has_rep_prefix() {
-    attrs |= 0b001;
-  }
-  if instr.has_repne_prefix() {
-    attrs |= 0b010;
-  }
-  if instr.has_lock_prefix() {
-    attrs |= 0b100;
-  }
-  let out_value = MergenDisassembledInstructionBase {
-    mnemonic: instr.mnemonic() as u16,
-    mem_base: instr.memory_base() as u8,
-    mem_index: instr.memory_index() as u8,
-    mem_scale: instr.memory_index_scale() as u8,
-    mem_disp: if is_rel { disp64.wrapping_sub(instr_len) } else { disp64 },
-    stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
-    immediate,
-    regs: [
-      instr.op0_register() as u8,
-      instr.op1_register() as u8,
-      instr.op2_register() as u8,
-      instr.op3_register() as u8,
-    ],
-    types: [
-      convert_type_to_mergen(&instr, 0) as u8,
-      convert_type_to_mergen(&instr, 1) as u8,
-      convert_type_to_mergen(&instr, 2) as u8,
-      convert_type_to_mergen(&instr, 3) as u8,
-    ],
-    operand_count_visible: instr.op_count() as u8,
-    attributes: attrs,
-    length: instr.len() as u8,
-    text,
-  };
-  unsafe { ptr::write(out, out_value) };
+
+  // Use thread-local cached string to avoid repeated allocations
+  let text = CACHED_STRING.with(|s| {
+    let mut s = s.borrow_mut();
+    s.clear(); // Clear previous content
+    formatter.format(&instr, &mut *s);
+
+    // Copy to fixed-size array
+    let bytes = s.as_bytes();
+    let mut text_array = [0u8; 64];
+    let copy_len = bytes.len().min(63);
+    text_array[..copy_len].copy_from_slice(&bytes[..copy_len]);
+    text_array[copy_len] = 0; // Null-terminate
+    text_array
+  });
+
+  // Build the result
+  let mut result = disassemble_instruction(&instr);
+  result.text = text;
+
+  unsafe { *out = result; }
+
   0
 }
