@@ -79,7 +79,7 @@ fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
         16 => OperandType::Register128,
         32 => OperandType::Register256,
         64 => OperandType::Register512,
-        _ => OperandType::Invalid,
+        _ => OperandType::Register64,
       }
     },
 
@@ -92,10 +92,11 @@ fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
         16 => OperandType::Memory128,
         32 => OperandType::Memory256,
         64 => OperandType::Memory512,
-        _ => OperandType::Invalid,
+        _ => OperandType::Memory64,
       }
     },
     OpKind::MemorySegDI | OpKind::MemorySegSI => OperandType::Memory8,
+	OpKind::MemoryESDI => OperandType::Memory16,
     OpKind::MemoryESEDI | OpKind::MemorySegESI | OpKind::MemorySegEDI  => OperandType::Memory32,
     OpKind::MemoryESRDI | OpKind::MemorySegRSI | OpKind::MemorySegRDI => OperandType::Memory64,
 
