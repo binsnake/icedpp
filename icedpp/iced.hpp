@@ -125,77 +125,61 @@ namespace iced
 		}
 
 		NODISCARD FORCE_INLINE OperandKindSimple opKindToSimple ( OperandKind rawType ) const noexcept {
-			const auto map = static_cast< OperandKind >( rawType );
-			switch ( map ) {
-				case OperandKind::Memory8:
-				case OperandKind::Memory16:
-				case OperandKind::Memory32:
-				case OperandKind::Memory64:
-				case OperandKind::Memory128:
-				case OperandKind::Memory256:
-				case OperandKind::Memory512:
-					return OperandKindSimple::Memory;
-				case OperandKind::Immediate8:
-				case OperandKind::Immediate8_2nd:
-				case OperandKind::Immediate16:
-				case OperandKind::Immediate32:
-				case OperandKind::Immediate64:
-					return OperandKindSimple::Immediate;
-				case OperandKind::Register8:
-				case OperandKind::Register16:
-				case OperandKind::Register32:
-				case OperandKind::Register64:
-				case OperandKind::Register128:
-				case OperandKind::Register256:
-				case OperandKind::Register512:
-					return OperandKindSimple::Register;
-				case OperandKind::NearBranch:
-					return OperandKindSimple::NearBranch;
-				case OperandKind::FarBranch:
-					return OperandKindSimple::FarBranch;
-				default:
-					break;
-			}
+			static constexpr OperandKindSimple lookup [ ] = {
+					OperandKindSimple::Invalid,    // Invalid
+					OperandKindSimple::Register,   // Register8-512
+					OperandKindSimple::Register,
+					OperandKindSimple::Register,
+					OperandKindSimple::Register,
+					OperandKindSimple::Register,
+					OperandKindSimple::Register,
+					OperandKindSimple::Register,
+					OperandKindSimple::Memory,     // Memory8-512
+					OperandKindSimple::Memory,
+					OperandKindSimple::Memory,
+					OperandKindSimple::Memory,
+					OperandKindSimple::Memory,
+					OperandKindSimple::Memory,
+					OperandKindSimple::Memory,
+					OperandKindSimple::Immediate,  // Immediate8-64
+					OperandKindSimple::Immediate,
+					OperandKindSimple::Immediate,
+					OperandKindSimple::Immediate,
+					OperandKindSimple::Immediate,
+					OperandKindSimple::NearBranch, // NearBranch
+					OperandKindSimple::FarBranch   // FarBranch
+			};
 
-			return OperandKindSimple::Invalid;
+			return lookup [ static_cast< uint8_t >( rawType ) ];
 		}
 		/// Returns operand size in bytes
 		NODISCARD FORCE_INLINE std::size_t opSize ( std::size_t index ) const noexcept {
-			const auto map = icedInstr.types [ index ];
-			switch ( map ) {
-				case OperandKind::Memory8:
-				case OperandKind::Register8:
-				case OperandKind::Immediate8:
-				case OperandKind::Immediate8_2nd:
-					return 1;
-				case OperandKind::Memory16:
-				case OperandKind::Register16:
-				case OperandKind::Immediate16:
-					return 2;
-				case OperandKind::Memory32:
-				case OperandKind::Immediate32:
-				case OperandKind::Register32:
-				case OperandKind::FarBranch:
-					return 4;
-				case OperandKind::Memory64:
-				case OperandKind::Register64:
-				case OperandKind::Immediate64:
-				case OperandKind::NearBranch:
-					return 8;
-				case OperandKind::Memory128:
-				case OperandKind::Register128:
-					return 16;
-				case OperandKind::Memory256:
-				case OperandKind::Register256:
-					return 32;
-				case OperandKind::Memory512:
-				case OperandKind::Register512:
-					return 64;
-				default:
-					break;
-			}
+			static constexpr std::size_t lookup [ ] = {
+					0,   // Invalid
+					1,   // Register8
+					2,   // Register16
+					4,   // Register32
+					8,   // Register64
+					16,  // Register128
+					32,  // Register256
+					64,  // Register512
+					1,   // Memory8
+					2,   // Memory16
+					4,   // Memory32
+					8,   // Memory64
+					16,  // Memory128
+					32,  // Memory256
+					64,  // Memory512
+					1,   // Immediate8
+					1,   // Immediate8_2nd
+					2,   // Immediate16
+					4,   // Immediate32
+					8,   // Immediate64
+					8,   // NearBranch
+					4    // FarBranch
+			};
 
-			return 0ULL;
+			return lookup [ static_cast< uint8_t >( icedInstr.types [ index ] ) ];
 		}
 		/// <summary>
 		///  Calculates size of operand in bytes
@@ -295,7 +279,10 @@ namespace iced
 
 		NODISCARD FORCE_INLINE __iced_internal::IcedInstruction& internalInstruction ( ) { return icedInstr; }
 		NODISCARD FORCE_INLINE std::uint8_t operandCount ( ) const noexcept { return icedInstr.operand_count_visible; }
-		NODISCARD FORCE_INLINE std::uint8_t instructionLength ( ) const noexcept { return icedInstr.length; }
+		NODISCARD FORCE_INLINE std::uint8_t length ( ) const noexcept { return icedInstr.length; }
+		NODISCARD FORCE_INLINE bool hasRepPrefix ( ) const noexcept { return icedInstr.attributes.rep; }
+		NODISCARD FORCE_INLINE bool hasRepnePrefix ( ) const noexcept { return icedInstr.attributes.repne; }
+		NODISCARD FORCE_INLINE bool hasLockPrefix ( ) const noexcept { return icedInstr.attributes.lock; }
 		NODISCARD FORCE_INLINE IcedMnemonic mnemonic ( ) const noexcept { return static_cast< IcedMnemonic >( icedInstr.mnemonic ); }
 		NODISCARD FORCE_INLINE bool valid ( ) const noexcept { return icedInstr.mnemonic != IcedMnemonic::INVALID; }
 		NODISCARD FORCE_INLINE std::uint8_t stackGrowth ( ) const noexcept { return icedInstr.stack_growth; }
@@ -306,31 +293,8 @@ namespace iced
 		NODISCARD FORCE_INLINE bool isCall ( ) const noexcept { return idEquals ( IcedMnemonic::Call ); }
 		NODISCARD FORCE_INLINE bool isJmp ( ) const noexcept { return idEquals ( IcedMnemonic::Jmp ); }
 		NODISCARD bool isJcc ( ) const noexcept {
-			switch ( mnemonic ( ) ) {
-				case IcedMnemonic::Jb:
-				case IcedMnemonic::Jae:
-				case IcedMnemonic::Jbe:
-				case IcedMnemonic::Ja:
-				case IcedMnemonic::Je:
-				case IcedMnemonic::Jne:
-				case IcedMnemonic::Jl:
-				case IcedMnemonic::Jge:
-				case IcedMnemonic::Jle:
-				case IcedMnemonic::Jg:
-				case IcedMnemonic::Jo:
-				case IcedMnemonic::Jno:
-				case IcedMnemonic::Jp:
-				case IcedMnemonic::Jnp:
-				case IcedMnemonic::Js:
-				case IcedMnemonic::Jns:
-				case IcedMnemonic::Jcxz:
-				case IcedMnemonic::Jecxz:
-				case IcedMnemonic::Jrcxz:
-					return true;
-				default:
-					break;
-			}
-			return false;
+			const auto& mnemonic = icedInstr.mnemonic;
+			return mnemonic >= IcedMnemonic::Ja && mnemonic <= IcedMnemonic::Js;
 		}
 		NODISCARD FORCE_INLINE bool isJump ( ) const noexcept { return isJmp ( ) || isJcc ( ); }
 		NODISCARD FORCE_INLINE bool isBranching ( ) const noexcept { return isCall ( ) || isJump ( ); }
@@ -358,14 +322,14 @@ namespace iced
 
 		NODISCARD FORCE_INLINE std::uint64_t computeMemoryAddress ( ) const noexcept {
 			if ( icedInstr.mem_base == IcedReg::RIP ) {
-				return ip + instructionLength ( ) + icedInstr.mem_disp;
+				return ip + length ( ) + icedInstr.mem_disp;
 			}
 
 			if ( icedInstr.mem_base == IcedReg::None || !icedInstr.mem_index ) { // Displacement holds absolute address
 				return icedInstr.mem_disp;
 			}
 
-			return 0ULL; // Unresolvable statically
+			return icedInstr.immediate;
 		}
 		NODISCARD FORCE_INLINE std::uint64_t resolveMemoryTarget ( ) const noexcept { return computeMemoryAddress ( ); }
 		NODISCARD std::uint64_t branchTarget ( ) const noexcept {
@@ -376,7 +340,7 @@ namespace iced
 					return resolveMemoryTarget ( );
 				case OperandKindSimple::NearBranch:
 				case OperandKindSimple::FarBranch:
-					return ip + instructionLength ( ) + icedInstr.mem_disp;
+					return ip + length ( ) + icedInstr.mem_disp;
 				default:
 					return 0ULL;
 			}
@@ -448,7 +412,7 @@ namespace iced
 
 		bool setIp ( std::uint64_t ip ) noexcept {
 			if ( ip < baseAddr_ || ip >= baseAddr_ + size_ ) {
-				return false; // Out of bounds
+				return false;
 			}
 			ip_ = ip;
 			offset_ = ip - baseAddr_;

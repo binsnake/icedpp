@@ -3,10 +3,14 @@ use std::{ptr, slice};
 use std::os::raw::c_char;
 use memoffset::offset_of;
 
-pub const PREFIX_NONE: u8 = 0;
-pub const PREFIX_REP: u8 = 1;
-pub const PREFIX_REPNE: u8 = 2;
-pub const PREFIX_LOCK: u8 = 3;
+#[repr(u8)]
+#[derive(Clone, Copy)]
+pub enum MergenPrefix {
+  None = 0,
+  Rep = 1 << 0,  // 0b0001
+  Repne = 1 << 1, // 0b0010
+  Lock = 1 << 2,  // 0b0100
+}
 
 #[derive(Debug, Clone, Copy)]
 enum OperandType {
@@ -114,9 +118,17 @@ fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
 
 #[inline(always)]
 fn set_attributes(instr: &Instruction) -> u8 {
-  (if instr.has_rep_prefix() { PREFIX_REP } else { 0 }) |
-      (if instr.has_repne_prefix() { PREFIX_REPNE } else { 0 }) |
-      (if instr.has_lock_prefix() { PREFIX_LOCK } else { 0 })
+  let mut flags = MergenPrefix::None as u8;
+  if instr.has_rep_prefix() {
+    flags |= MergenPrefix::Rep as u8;
+  }
+  if instr.has_repne_prefix() {
+    flags |= MergenPrefix::Repne as u8;
+  }
+  if instr.has_lock_prefix() {
+    flags |= MergenPrefix::Lock as u8;
+  }
+  flags
 }
 
 const HAS_64BIT_IMM: u8 = 0b01;

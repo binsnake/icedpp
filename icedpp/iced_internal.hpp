@@ -2215,6 +2215,13 @@ enum class FlowControl {
   Exception = 9,
 };
 
+struct IcedAttribute {
+  uint8_t rep : 1;
+  uint8_t repne : 1; 
+  uint8_t lock : 1;
+  uint8_t reserved : 5;
+};
+
 namespace __iced_internal
 {
   struct IcedInstruction {
@@ -2225,7 +2232,7 @@ namespace __iced_internal
     uint8_t stack_growth;
     IcedReg regs [ 4 ];
     OperandKind types [ 4 ];
-    uint8_t attributes;
+    IcedAttribute attributes;
     uint8_t length;
     uint8_t operand_count_visible;
     uint64_t immediate;
