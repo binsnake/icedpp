@@ -37,10 +37,25 @@ enum OperandType {
   NearBranch,
   FarBranch,
 }
-
 #[repr(C)]
 #[derive(Debug, Clone)]
 pub struct MergenDisassembledInstructionBase {
+  pub mnemonic: u16,
+  pub mem_base: u8,
+  pub mem_index: u8,
+  pub mem_scale: u8,
+  pub stack_growth: u8,
+  pub regs: [u8; 4],
+  pub types: [u8; 4],
+  pub attributes: u8,
+  pub length: u8,
+  pub operand_count_visible: u8,
+  pub immediate: u64,
+  pub mem_disp: u64,
+}
+#[repr(C)]
+#[derive(Debug, Clone)]
+pub struct MergenDisassembledInstructionBase2 {
   pub mnemonic: u16,
   pub mem_base: u8,
   pub mem_index: u8,
@@ -69,7 +84,7 @@ const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, length) == 1
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, operand_count_visible) == 16, "invalid offset");
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, immediate) == 24, "invalid offset");
 const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, mem_disp) == 32, "invalid offset");
-const _: () = assert!(offset_of!(MergenDisassembledInstructionBase, text) == 40, "invalid offset");
+const _: () = assert!(offset_of!(MergenDisassembledInstructionBase2, text) == 40, "invalid offset");
 
 #[inline(always)]
 fn convert_type_to_mergen(instr: &Instruction, index: u32) -> OperandType {
@@ -208,6 +223,53 @@ fn disassemble_instruction(instr: &Instruction) -> MergenDisassembledInstruction
     operand_count_visible: instr.op_count() as u8,
     attributes: set_attributes(&instr),
     length: instr_len_u8,
+  }
+}
+#[inline(always)]
+fn disassemble_instruction2(instr: &Instruction) -> MergenDisassembledInstructionBase2 {
+  let instr_len = instr.len();
+  let instr_len_u8 = instr_len as u8;
+  let instr_len_u64 = instr_len as u64;
+  let disp64 = instr.memory_displacement64();
+  let flags = analyze_instruction_bitfield(&instr);
+  let is_rel = (flags & IS_RELATIVE) != 0;
+  let adjusted_disp = disp64.wrapping_sub(instr_len_u64);
+
+  let immediate = if is_rel {
+    adjusted_disp
+  } else if (flags & HAS_64BIT_IMM) != 0 {
+    instr.immediate64()
+  } else {
+    instr.immediate32() as u64
+  };
+
+  // Optimize type array creation
+  let types = unsafe {
+    let mut t = [0u8; 4];
+    for i in 0..4 {
+      *t.get_unchecked_mut(i) = convert_type_to_mergen(&instr, i as u32) as u8;
+    }
+    t
+  };
+
+  MergenDisassembledInstructionBase2 {
+    mnemonic: instr.mnemonic() as u16,
+    mem_base: instr.memory_base() as u8,
+    mem_index: instr.memory_index() as u8,
+    mem_scale: instr.memory_index_scale() as u8,
+    mem_disp: if is_rel { adjusted_disp } else { disp64 },
+    stack_growth: instr.stack_pointer_increment().unsigned_abs() as u8,
+    immediate,
+    regs: [
+      instr.op0_register() as u8,
+      instr.op1_register() as u8,
+      instr.op2_register() as u8,
+      instr.op3_register() as u8,
+    ],
+    types,
+    operand_count_visible: instr.op_count() as u8,
+    attributes: set_attributes(&instr),
+    length: instr_len_u8,
     text: [0u8; 64],
   }
 }
@@ -244,7 +306,7 @@ thread_local! {
 
 #[no_mangle]
 pub extern "C" fn disas2(
-  out: *mut MergenDisassembledInstructionBase,
+  out: *mut MergenDisassembledInstructionBase2,
   code_ptr: *const u8,
   len: usize,
 ) -> i32 {
@@ -285,7 +347,7 @@ pub extern "C" fn disas2(
   });
 
   // Build the result
-  let mut result = disassemble_instruction(&instr);
+  let mut result = disassemble_instruction2(&instr);
   result.text = text;
 
   unsafe { *out = result; }
