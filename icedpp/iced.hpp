@@ -274,10 +274,10 @@ namespace iced
 
 		NODISCARD FORCE_INLINE std::uint64_t immediate ( ) const noexcept { return icedInstr.immediate; }
 		NODISCARD FORCE_INLINE std::uint64_t displacement ( ) const noexcept { return icedInstr.mem_disp; }
-		NODISCARD FORCE_INLINE std::uint64_t memIndex ( ) const noexcept { return icedInstr.mem_index; }
+		NODISCARD FORCE_INLINE IcedReg memIndex ( ) const noexcept { return static_cast< IcedReg >(icedInstr.mem_index); }
 		NODISCARD FORCE_INLINE IcedReg memBase ( ) const noexcept { return static_cast< IcedReg >( icedInstr.mem_base ); }
 
-		NODISCARD FORCE_INLINE __iced_internal::IcedInstruction& internalInstruction ( ) { return icedInstr; }
+		NODISCARD FORCE_INLINE __iced_internal::IcedInstruction& internalInstruction ( ) noexcept { return icedInstr; }
 		NODISCARD FORCE_INLINE std::uint8_t operandCount ( ) const noexcept { return icedInstr.operand_count_visible; }
 		NODISCARD FORCE_INLINE std::uint8_t length ( ) const noexcept { return icedInstr.length; }
 		NODISCARD FORCE_INLINE bool hasRepPrefix ( ) const noexcept { return icedInstr.attributes.rep; }
@@ -292,7 +292,7 @@ namespace iced
 		NODISCARD FORCE_INLINE bool isNop ( ) const noexcept { return idEquals ( IcedMnemonic::Nop ); }
 		NODISCARD FORCE_INLINE bool isCall ( ) const noexcept { return idEquals ( IcedMnemonic::Call ); }
 		NODISCARD FORCE_INLINE bool isJmp ( ) const noexcept { return idEquals ( IcedMnemonic::Jmp ); }
-		NODISCARD bool isJcc ( ) const noexcept {
+		NODISCARD FORCE_INLINE bool isJcc ( ) const noexcept {
 			const auto& mnemonic = icedInstr.mnemonic;
 			return mnemonic >= IcedMnemonic::Ja && mnemonic <= IcedMnemonic::Js;
 		}
@@ -306,6 +306,9 @@ namespace iced
 			}
 
 			return op0KindSimple ( ) == OperandKindSimple::Register || op0KindSimple ( ) == OperandKindSimple::Memory;
+		}
+		NODISCARD bool modifiesReg ( IcedReg reg ) const noexcept {
+			return op0KindSimple ( ) == OperandKindSimple::Register && op0Reg ( ) == reg;
 		}
 		NODISCARD bool isRet ( ) const noexcept {
 			switch ( icedInstr.mnemonic ) {
@@ -419,6 +422,16 @@ namespace iced
 			return true;
 		}
 
+		bool setIp ( std::uint8_t* _ip ) noexcept {
+			auto ip = reinterpret_cast< std::uint64_t > ( _ip );
+			if ( ip < baseAddr_ || ip >= baseAddr_ + size_ ) {
+				return false;
+			}
+			ip_ = ip;
+			offset_ = ip - baseAddr_;
+			return true;
+		}
+
 		void reconfigure ( const std::uint8_t* buffer, std::size_t size, std::uint64_t baseAddress ) noexcept {
 			assert ( buffer != nullptr && "Buffer cannot be null" );
 			assert ( size > 0 && "Buffer size must be greater than 0" );
@@ -509,6 +522,18 @@ namespace iced
 			updateState ( icedInstruction );
 			return currentInstruction_;
 		}
+
+		NODISCARD Instruction peek ( ) noexcept {
+			const auto* current_ptr = data_ + offset_;
+			const auto code_size = remainingSize ( );
+
+			__iced_internal::IcedInstruction icedInstruction {};
+			const auto decode_size = std::min ( static_cast< std::size_t >( 16 ), code_size );
+			disas2 ( &icedInstruction, current_ptr, decode_size );
+
+			//updateState ( icedInstruction );
+			return Instruction ( icedInstruction, ip ( ) );
+		}
 	};
 
 	class ReleaseDecoder : public DecoderBase {
@@ -527,6 +552,18 @@ namespace iced
 
 			updateState ( icedInstruction );
 			return currentInstruction_;
+		}		
+		
+		NODISCARD Instruction peek ( ) noexcept {
+			const auto* current_ptr = data_ + offset_;
+			const auto code_size = remainingSize ( );
+
+			__iced_internal::IcedInstruction icedInstruction {};
+			const auto decode_size = std::min ( static_cast< std::size_t >( 16 ), code_size );
+			disas ( &icedInstruction, current_ptr, decode_size );
+
+			//updateState ( icedInstruction );
+			return Instruction ( icedInstruction, ip ( ) );
 		}
 	};
 
