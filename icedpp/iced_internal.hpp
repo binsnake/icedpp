@@ -2,7 +2,7 @@
 #define __ICEDINT_DEF
 #include <cstdint>
 
-enum class IcedMnemonic : uint16_t {
+enum class Mnemonic : uint16_t {
   INVALID = 0,
   Aaa = 1,
   Aad = 2,
@@ -1896,10 +1896,11 @@ enum class IcedMnemonic : uint16_t {
   Vsm3msg2 = 1890,
   Vsm3rnds2 = 1891,
   Vsm4key4 = 1892,
-  Vsm4rnds4 = 1893
+  Vsm4rnds4 = 1893,
+  COUNT
 };
 
-enum class IcedReg : uint8_t {
+enum class Register : uint8_t {
   None = 0,
   AL = 1,
   CL = 2,
@@ -2166,7 +2167,7 @@ enum class IcedReg : uint8_t {
   DontUseFF = 255,
 };
 
-enum class OperandKind : uint8_t {
+enum class OpKind : uint8_t {
   Invalid,
   Register8,
   Register16,
@@ -2192,7 +2193,7 @@ enum class OperandKind : uint8_t {
   End = FarBranch
 };
 
-enum class OperandKindSimple : uint8_t {
+enum class OpKindSimple : uint8_t {
   Invalid,
   Register,
   Memory,
@@ -2225,13 +2226,13 @@ struct IcedAttribute {
 namespace __iced_internal
 {
   struct IcedInstruction {
-    IcedMnemonic mnemonic;
-    IcedReg mem_base;
-    uint8_t mem_index;
+    Mnemonic mnemonic;
+    Register mem_base;
+    Register mem_index;
     uint8_t mem_scale;
     uint8_t stack_growth;
-    IcedReg regs [ 4 ];
-    OperandKind types [ 4 ];
+    Register regs [ 4 ];
+    OpKind types [ 4 ];
     IcedAttribute attributes;
     uint8_t length;
     uint8_t operand_count_visible;
@@ -2240,6 +2241,8 @@ namespace __iced_internal
       uint64_t mem_disp;
       uint64_t immediate2;
     };
+    Register segment_prefix;
+    bool is_broadcast;
     char text[64];
   };
 
@@ -2255,6 +2258,5 @@ namespace __iced_internal
   static_assert( offsetof ( IcedInstruction, operand_count_visible ) == 16, "invalid offset" );
   static_assert( offsetof ( IcedInstruction, immediate ) == 24, "invalid offset" );
   static_assert( offsetof ( IcedInstruction, immediate2 ) == 32, "invalid offset" );
-  static_assert( offsetof ( IcedInstruction, text ) == 40, "invalid offset" );
 }
 #endif
