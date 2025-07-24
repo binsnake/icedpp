@@ -234,12 +234,21 @@ fn disassemble_instruction(instr: &Instruction) -> MergenDisassembledInstruction
     let is_rel = (flags & IS_RELATIVE) != 0;
     let adjusted_disp = disp64.wrapping_sub(instr_len_u64);
 
-    let immediate = if is_rel {
-        adjusted_disp
-    } else if (flags & HAS_64BIT_IMM) != 0 {
-        instr.immediate64()
-    } else {
-        instr.immediate32() as u64
+    let immediate = {
+        let mut op_count = instr.op_count();
+        if op_count > 0 {
+            op_count -= 1;
+        }
+        match instr.op_kind(op_count) {
+            OpKind::Immediate8 => instr.immediate8() as u64,
+            OpKind::Immediate16 => instr.immediate16() as u64,
+            OpKind::Immediate32 => instr.immediate32() as u64,
+            OpKind::Immediate64 => instr.immediate64(),
+            OpKind::Immediate8to16 => instr.immediate8to16() as u64,
+            OpKind::Immediate8to32 => instr.immediate8to32() as u64,
+            OpKind::Immediate8to64 => instr.immediate8to64() as u64,
+            _ => instr.immediate(op_count),
+        }
     };
 
     // Optimize type array creation
@@ -283,12 +292,21 @@ fn disassemble_instruction2(instr: &Instruction) -> MergenDisassembledInstructio
     let is_rel = (flags & IS_RELATIVE) != 0;
     let adjusted_disp = disp64.wrapping_sub(instr_len_u64);
 
-    let immediate = if is_rel {
-        adjusted_disp
-    } else if (flags & HAS_64BIT_IMM) != 0 {
-        instr.immediate64()
-    } else {
-        instr.immediate32() as u64
+    let immediate = {
+        let mut op_count = instr.op_count();
+        if op_count > 0 {
+            op_count -= 1;
+        }
+        match instr.op_kind(op_count) {
+            OpKind::Immediate8 => instr.immediate8() as u64,
+            OpKind::Immediate16 => instr.immediate16() as u64,
+            OpKind::Immediate32 => instr.immediate32() as u64,
+            OpKind::Immediate64 => instr.immediate64(),
+            OpKind::Immediate8to16 => instr.immediate8to16() as u64,
+            OpKind::Immediate8to32 => instr.immediate8to32() as u64,
+            OpKind::Immediate8to64 => instr.immediate8to64() as u64,
+            _ => instr.immediate(op_count),
+        }
     };
 
     // Optimize type array creation
