@@ -247,7 +247,7 @@ fn disassemble_instruction(instr: &Instruction) -> MergenDisassembledInstruction
                 OpKind::Immediate8to16 => instr.immediate8to16() as u64,
                 OpKind::Immediate8to32 => instr.immediate8to32() as u64,
                 OpKind::Immediate8to64 => instr.immediate8to64() as u64,
-                _ => instr.immediate(op_count),
+                _ => 0u64,
             }
         } else {
             0u64
@@ -308,7 +308,7 @@ fn disassemble_instruction2(instr: &Instruction) -> MergenDisassembledInstructio
                 OpKind::Immediate8to16 => instr.immediate8to16() as u64,
                 OpKind::Immediate8to32 => instr.immediate8to32() as u64,
                 OpKind::Immediate8to64 => instr.immediate8to64() as u64,
-                _ => instr.immediate(op_count),
+                _ => 0u64,
             }
         } else {
             0u64
